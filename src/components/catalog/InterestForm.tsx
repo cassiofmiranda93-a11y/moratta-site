@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { CheckCircle2, Send } from "lucide-react";
@@ -32,9 +32,11 @@ export default function InterestForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const currentForm = event.currentTarget;
     setStatus("loading");
     setMessage("");
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(currentForm);
     try {
       await createWebsiteLead({
         name: String(form.get("name") ?? ""),
@@ -49,13 +51,13 @@ export default function InterestForm({
         ...utm,
       });
       setStatus("success");
-      setMessage("Recebemos seu interesse. Um corretor da Moratta entrará em contato.");
-      event.currentTarget.reset();
+      setMessage("Recebemos seu interesse. Um corretor da Moratta entrarÃ¡ em contato.");
+      currentForm.reset();
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Não foi possível enviar agora.";
+      const text = error instanceof Error ? error.message : "NÃ£o foi possÃ­vel enviar agora.";
       setStatus("error");
       setMessage(text.includes("permission") || text.includes("already-exists")
-        ? "Seu cadastro já está no nosso atendimento. Vamos falar com você pelo WhatsApp."
+        ? "Seu cadastro jÃ¡ estÃ¡ no nosso atendimento. Vamos falar com vocÃª pelo WhatsApp."
         : text);
     }
   }
@@ -98,7 +100,8 @@ export default function InterestForm({
       <button disabled={status === "loading"} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-950 font-bold text-white transition hover:bg-blue-800 disabled:opacity-60">
         <Send size={18} /> {status === "loading" ? "Enviando..." : "Quero falar com um corretor"}
       </button>
-      <p className="text-xs leading-5 text-slate-500">Ao enviar, você autoriza o contato da Moratta Imóveis sobre este imóvel.</p>
+      <p className="text-xs leading-5 text-slate-500">Ao enviar, vocÃª autoriza o contato da Moratta ImÃ³veis sobre este imÃ³vel.</p>
     </form>
   );
 }
+
