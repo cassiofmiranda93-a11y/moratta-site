@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owns(userId) { return signedIn() && request.auth.uid == userId; }
+    function validPublicLead() {
+      return request.resource.data.keys().hasAll(['name', 'phone', 'source', 'stage', 'status', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 10
+        && request.resource.data.phone.size() <= 15
+        && request.resource.data.source == 'site'
+        && request.resource.data.stage == 'new'
+        && request.resource.data.status == 'active';
+    }
+
+    match /users/{userId} {
+      allow create: if owns(userId) && request.resource.data.uid == userId;
+      allow read: if owns(userId);
+      allow update: if owns(userId) && resource.data.uid == userId && request.resource.data.uid == userId;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/{collectionId}/{documentId} {
+      allow read, create, update, delete: if owns(userId)
+        && collectionId in ['tasks', 'appointments', 'missions', 'habits', 'focusSessions', 'migrations'];
+    }
+
+    match /users/{userId}/crmLeads/{leadId} {
+      allow read, create, update, delete: if owns(userId);
+      match /activities/{activityId} {
+        allow read, create, update, delete: if owns(userId);
+      }
+    }
+
+    match /organizations/{organizationId}/developments/{developmentId} {
+      allow read: if signedIn() || (resource.data.status == 'published' && resource.data.active == true);
+      allow create, update, delete: if signedIn();
+    }
+
+    match /organizations/{organizationId}/properties/{propertyId} {
+      allow read: if signedIn() || (resource.data.active == true
+        && get(/databases/$(database)/documents/organizations/$(organizationId)/developments/$(resource.data.developmentId)).data.status == 'published');
+      allow create, update, delete: if signedIn();
+    }
+
+    match /organizations/{organizationId}/leads/{leadId} {
+      allow create: if validPublicLead();
+      allow read, update, delete: if signedIn();
+      match /activities/{activityId} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    match /organizations/{organizationId}/settings/{documentId} {
+      allow read, write: if signedIn();
+    }
+
+    match /organizations/{organizationId}/members/{memberId} {
+      allow read, write: if signedIn();
+    }
+  }
+}

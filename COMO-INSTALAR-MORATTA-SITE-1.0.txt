@@ -1,0 +1,16 @@
+1. Extraia o ZIP dentro da pasta do projeto do site.
+2. Abra o PowerShell na pasta.
+3. Execute:
+
+powershell -ExecutionPolicy Bypass -File .\INSTALAR-MORATTA-SITE-1.0.ps1
+
+4. Para abrir:
+
+npm run dev
+
+Site: http://localhost:3000
+Admin: http://localhost:3000/admin
+
+5. Publique firestore.rules e storage.rules pelo Console Firebase ou execute:
+
+powershell -ExecutionPolicy Bypass -File .\PUBLICAR-REGRAS-MORATTA.ps1
