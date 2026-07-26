@@ -1,0 +1,7 @@
+1. Pare o servidor com Ctrl + C.
+2. Extraia o ZIP dentro da pasta do projeto do site.
+3. Preserve o arquivo .env.local existente.
+4. Execute:
+   powershell -ExecutionPolicy Bypass -File .\INSTALAR-MORATTA-SITE-1.1.ps1
+5. Publique firestore.rules e storage.rules no Firebase.
+6. Abra com npm run dev.

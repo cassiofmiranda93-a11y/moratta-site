@@ -1,0 +1,10 @@
+"use client";
+
+import { ArrowLeft, ArrowRight, ImageIcon, Star, Trash2 } from "lucide-react";
+import CatalogImage from "@/components/catalog/CatalogImage";
+
+export default function GalleryManager({ images, coverImage, onChange, onCoverChange }: { images: string[]; coverImage: string; onChange: (images: string[]) => void; onCoverChange: (image: string) => void; }) {
+  function move(index: number, direction: -1 | 1) { const next = [...images]; const target = index + direction; if (target < 0 || target >= next.length) return; [next[index], next[target]] = [next[target], next[index]]; onChange(next); }
+  if (!images.length) return <div className="mt-4 rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500"><ImageIcon className="mx-auto mb-2"/>Nenhuma foto salva.</div>;
+  return <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{images.map((image, index) => <div key={`${image}-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="relative h-36"><CatalogImage src={image} alt={`Foto ${index + 1}`} className="object-cover"/>{coverImage === image && <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-xs font-bold text-slate-950">Capa</span>}</div><div className="flex items-center justify-between gap-1 p-2"><button type="button" onClick={() => move(index,-1)} className="rounded-lg bg-slate-100 p-2" aria-label="Mover para esquerda"><ArrowLeft size={15}/></button><button type="button" onClick={() => onCoverChange(image)} className="rounded-lg bg-amber-50 p-2 text-amber-700" aria-label="Definir como capa"><Star size={15}/></button><button type="button" onClick={() => onChange(images.filter((_, current) => current !== index))} className="rounded-lg bg-red-50 p-2 text-red-700" aria-label="Remover"><Trash2 size={15}/></button><button type="button" onClick={() => move(index,1)} className="rounded-lg bg-slate-100 p-2" aria-label="Mover para direita"><ArrowRight size={15}/></button></div></div>)}</div>;
+}

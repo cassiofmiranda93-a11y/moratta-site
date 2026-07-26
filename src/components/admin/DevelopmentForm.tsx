@@ -5,6 +5,7 @@ import { ImagePlus, Loader2, Save, X } from "lucide-react";
 import { createSlug, parseList, toNullableNumber } from "@/lib/catalog";
 import { saveDevelopment, uploadCatalogImages } from "@/services/catalogService";
 import type { Development, DevelopmentInput, DevelopmentStatus } from "@/types/project";
+import GalleryManager from "./GalleryManager";
 
 function initialValue(item?: Development): DevelopmentInput {
   return item ? {
@@ -171,6 +172,7 @@ export default function DevelopmentForm({ item, onClose, onSaved }: {
               <input type="file" accept="image/*" multiple className="hidden" onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
             </label>
             {(files.length > 0 || value.gallery.length > 0) && <p className="mt-3 text-sm text-slate-500">{files.length} nova(s) foto(s) · {value.gallery.length} foto(s) já salvas</p>}
+            <GalleryManager images={value.gallery} coverImage={value.coverImage} onChange={(images) => update("gallery", images)} onCoverChange={(image) => update("coverImage", image)} />
           </section>
 
           <section className="grid gap-4 rounded-2xl bg-slate-50 p-5 md:grid-cols-3">

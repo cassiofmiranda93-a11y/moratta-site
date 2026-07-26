@@ -1,0 +1,9 @@
+VALIDAÇÃO REALIZADA NO PACOTE
+- 6 testes unitários do catálogo aprovados.
+- Arquivos obrigatórios e imports locais conferidos.
+- Credenciais, node_modules, .next e .git excluídos do ZIP.
+
+VALIDAÇÃO QUE SERÁ FEITA PELO INSTALADOR NO COMPUTADOR
+- npm install
+- npm run lint
+- npm run build

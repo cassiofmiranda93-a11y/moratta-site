@@ -12,6 +12,8 @@ import {
   Plus,
   RefreshCw,
   UploadCloud,
+  Users,
+  UserRoundCheck,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -22,9 +24,11 @@ import { archiveDevelopment, archiveProperty, seedDevelopments } from "@/service
 import { formatCurrency } from "@/lib/catalog";
 import DevelopmentForm from "./DevelopmentForm";
 import PropertyForm from "./PropertyForm";
+import AdminLeadsPanel from "./AdminLeadsPanel";
+import TeamPanel from "./TeamPanel";
 import type { Development, PropertyUnit } from "@/types/project";
 
-type Tab = "overview" | "developments" | "properties";
+type Tab = "overview" | "developments" | "properties" | "leads" | "team";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -85,6 +89,8 @@ export default function AdminDashboard() {
           <NavButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<Home size={18} />} label="Visão geral" />
           <NavButton active={tab === "developments"} onClick={() => setTab("developments")} icon={<Building2 size={18} />} label="Empreendimentos" />
           <NavButton active={tab === "properties"} onClick={() => setTab("properties")} icon={<Home size={18} />} label="Imóveis e unidades" />
+          <NavButton active={tab === "leads"} onClick={() => setTab("leads")} icon={<UserRoundCheck size={18} />} label="Leads do site" />
+          <NavButton active={tab === "team"} onClick={() => setTab("team")} icon={<Users size={18} />} label="Corretores" />
           <div className="mt-4 border-t border-slate-100 pt-4"><p className="px-3 text-xs text-slate-500">Conectado como</p><p className="mt-1 truncate px-3 text-sm font-semibold text-slate-700">{user.email}</p></div>
         </aside>
 
@@ -118,6 +124,10 @@ export default function AdminDashboard() {
                   </div>
                 </section>
               )}
+
+              {tab === "leads" && <AdminLeadsPanel />}
+
+              {tab === "team" && <TeamPanel />}
 
               {tab === "properties" && (
                 <section>

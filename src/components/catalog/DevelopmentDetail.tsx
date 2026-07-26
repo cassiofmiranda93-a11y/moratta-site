@@ -8,6 +8,8 @@ import Footer from "@/components/layout/Footer";
 import WhatsAppFloat from "@/components/layout/WhatsAppFloat";
 import CatalogImage from "./CatalogImage";
 import InterestForm from "./InterestForm";
+import FinancingSimulator from "./FinancingSimulator";
+import ShareButtons from "./ShareButtons";
 import { Container } from "@/components/ui";
 import { useCatalog } from "@/hooks/useCatalog";
 import { availableUnits, formatCurrency } from "@/lib/catalog";
@@ -67,6 +69,7 @@ export default function DevelopmentDetail({ slug }: { slug: string }) {
                 </div>
                 <h1 className="mt-5 text-4xl font-extrabold text-slate-950 md:text-5xl">{development.name}</h1>
                 <p className="mt-3 flex items-center gap-2 text-slate-500"><MapPin size={18} /> {development.address || `${development.city} - ${development.state}`}</p>
+                <ShareButtons title={development.name} />
                 <div className="mt-8 grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-sm sm:grid-cols-4">
                   <Info icon={<BedDouble />} label="Dormitórios" value={development.bedroomsMin?.toString() ?? "Consulte"} />
                   <Info icon={<Bath />} label="Banheiros" value={development.bathroomsMin?.toString() ?? "Consulte"} />
@@ -108,6 +111,7 @@ export default function DevelopmentDetail({ slug }: { slug: string }) {
                 <p className="mt-1 text-3xl font-extrabold text-blue-950">{formatCurrency(development.priceFrom)}</p>
                 <h2 className="mt-7 text-xl font-extrabold text-slate-900">Receba condições e simulação</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">Seu cadastro entra diretamente no atendimento comercial da Moratta.</p>
+                <FinancingSimulator price={development.priceFrom} />
                 <div className="mt-6"><InterestForm propertyInterest={development.name} developmentId={development.id} /></div>
               </aside>
             </div>
