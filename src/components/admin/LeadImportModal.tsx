@@ -51,7 +51,7 @@ export default function LeadImportModal({ onClose, onImported }: { onClose: () =
       const clientSheet = workbook.Sheets.Clientes ?? workbook.Sheets[workbook.SheetNames[0]];
       const saleSheet = workbook.Sheets.Vendas_Recebimentos;
       if (!clientSheet) throw new Error("A planilha não possui uma aba com clientes.");
-      const clientRows = rowsFromSheet(clientSheet, ["Nome completo", "WhatsApp com DDD", "Etapa atual"]);
+      const clientRows = rowsFromSheet(clientSheet, ["Nome completo", "WhatsApp com DDD"]);
       const saleRows = saleSheet ? rowsFromSheet(saleSheet, ["WhatsApp do cliente", "Nome do cliente"]) : [];
       const nextPreview = buildCrmImportPreview(clientRows, saleRows);
       if (nextPreview.leads.length === 0) throw new Error("Nenhum cliente foi encontrado. Use o modelo da Moratta sem alterar os títulos das colunas.");
@@ -122,7 +122,7 @@ export default function LeadImportModal({ onClose, onImported }: { onClose: () =
               ) : (
                 <section className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                   <div className="flex items-center gap-2 text-emerald-800"><CheckCircle2/><h3 className="font-extrabold">Planilha validada</h3></div>
-                  <p className="mt-2 text-sm leading-6 text-emerald-800">Clientes com o mesmo WhatsApp já existentes serão ignorados. Vendas serão vinculadas pelo telefone do cliente.</p>
+                  <p className="mt-2 text-sm leading-6 text-emerald-800">Somente nome e WhatsApp são obrigatórios. Campos vazios serão aceitos e a etapa vazia será cadastrada como Novo lead. Clientes com o mesmo WhatsApp já existentes serão ignorados.</p>
                 </section>
               )}
 

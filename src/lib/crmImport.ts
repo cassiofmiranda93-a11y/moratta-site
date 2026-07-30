@@ -1,3 +1,4 @@
+import { normalizeCampaign, normalizeCity, normalizeEmail, normalizeLeadPhone, normalizePersonName, normalizePropertyInterest } from "@/lib/leadText";
 import type {
   CrmImportIssue,
   CrmImportPreview,
@@ -84,9 +85,7 @@ export function normalizeImportKey(value: unknown) {
 }
 
 export function normalizePhone(value: unknown) {
-  let digits = cleanText(value).replace(/\D/g, "");
-  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
-  return digits;
+  return normalizeLeadPhone(value);
 }
 
 function normalizedRow(row: Record<string, unknown>) {
@@ -195,15 +194,15 @@ export function buildCrmImportPreview(
   rawClientRows.forEach((raw, index) => {
     const rowNumber = Number(raw.__rowNumber ?? index + 2);
     const row = normalizedRow(raw);
-    const name = cleanText(pick(row, "Nome completo", "Nome", "Cliente"));
+    const name = normalizePersonName(pick(row, "Nome completo", "Nome", "Cliente"));
     const phone = normalizePhone(pick(row, "WhatsApp com DDD", "WhatsApp", "Telefone", "Celular"));
     const stageRaw = pick(row, "Etapa atual", "Etapa", "Status");
-    const stage = stageCode(stageRaw);
+    const stage = cleanText(stageRaw) ? stageCode(stageRaw) : "new";
 
-    if (!name && !phone && !cleanText(stageRaw)) return;
+    if (!name && !phone) return;
     if (name.length < 2) issues.push(issue("Clientes", rowNumber, "Nome", "Informe o nome completo do cliente."));
     if (phone.length < 10 || phone.length > 11) issues.push(issue("Clientes", rowNumber, "WhatsApp", "Informe DDD + número com 10 ou 11 dígitos."));
-    if (!stage) issues.push(issue("Clientes", rowNumber, "Etapa", `Etapa não reconhecida: ${cleanText(stageRaw) || "vazia"}.`));
+    if (cleanText(stageRaw) && !stage) issues.push(issue("Clientes", rowNumber, "Etapa", `Etapa não reconhecida: ${cleanText(stageRaw)}.`));
     if (phone && seenPhones.has(phone)) issues.push(issue("Clientes", rowNumber, "WhatsApp", "Este telefone está repetido na própria planilha."));
     if (phone) seenPhones.add(phone);
 
@@ -214,15 +213,15 @@ export function buildCrmImportPreview(
     const lead: WebsiteLeadInput = {
       name,
       phone,
-      email: cleanText(pick(row, "E-mail", "Email")).toLowerCase(),
-      city: cleanText(pick(row, "Cidade")),
-      propertyInterest: cleanText(pick(row, "Empreendimento / imóvel de interesse", "Empreendimento", "Interesse", "Imóvel")),
+      email: normalizeEmail(pick(row, "E-mail", "Email")),
+      city: normalizeCity(pick(row, "Cidade")),
+      propertyInterest: normalizePropertyInterest(pick(row, "Empreendimento / imóvel de interesse", "Empreendimento", "Interesse", "Imóvel")),
       developmentId: cleanText(pick(row, "ID do empreendimento", "Development ID")),
       propertyId: cleanText(pick(row, "ID do imóvel / unidade", "ID do imovel", "Property ID", "Unidade")),
       assignedTo: cleanText(pick(row, "Corretor responsável", "Corretor", "Responsável")),
       stage: stage || "new",
       source: sourceCode(pick(row, "Origem do lead", "Origem")),
-      campaign: cleanText(pick(row, "Campanha / anúncio", "Campanha", "Anúncio")),
+      campaign: normalizeCampaign(pick(row, "Campanha / anúncio", "Campanha", "Anúncio")),
       utmSource: cleanText(pick(row, "UTM / fonte", "UTM", "Fonte")),
       income: parseMoney(pick(row, "Renda familiar mensal", "Renda")),
       fgts: parseMoney(pick(row, "FGTS disponível", "FGTS")),

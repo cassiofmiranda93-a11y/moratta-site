@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, ClipboardList, MessageCircle, Pencil, ReceiptText, Send, Sparkles, Target, X } from "lucide-react";
+import { CalendarClock, CheckCircle2, ClipboardList, MessageCircle, Pencil, ReceiptText, Send, Sparkles, Target, Trash2, X } from "lucide-react";
 import { assessLead, priorityLabel } from "@/lib/atlasCrm";
-import { addLeadActivity, subscribeToBrokers, subscribeToLeadActivities, subscribeToLeadSales, toggleLeadActivity, updateLeadProfile } from "@/services/adminService";
+import { addLeadActivity, deleteLead, subscribeToBrokers, subscribeToLeadActivities, subscribeToLeadSales, toggleLeadActivity, updateLeadProfile } from "@/services/adminService";
 import { sendWhatsappFromCrm } from "@/services/integrationService";
 import type { BrokerRecord, LeadActivityRecord, SaleRecord, WebsiteLeadRecord } from "@/types/admin";
 import SaleFormModal from "./SaleFormModal";
@@ -12,7 +12,7 @@ function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export default function LeadDetailDrawer({ lead, onClose }: { lead: WebsiteLeadRecord; onClose: () => void }) {
+export default function LeadDetailDrawer({ lead, canDelete = false, onDeleted, onClose }: { lead: WebsiteLeadRecord; canDelete?: boolean; onDeleted?: (name: string) => void; onClose: () => void }) {
   const [activities, setActivities] = useState<LeadActivityRecord[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
@@ -50,6 +50,23 @@ export default function LeadDetailDrawer({ lead, onClose }: { lead: WebsiteLeadR
     } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível salvar."); } finally { setBusy(false); }
   }
 
+  async function removeLead() {
+    if (!canDelete) return;
+    const confirmed = window.confirm(`Excluir definitivamente o lead "${lead.name}"? Esta ação não pode ser desfeita.`);
+    if (!confirmed) return;
+
+    setBusy(true);
+    setMessage("");
+    try {
+      await deleteLead(lead.id);
+      onDeleted?.(lead.name);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível excluir o lead.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function sendWhatsapp() {
     setBusy(true); setMessage("");
     try {
@@ -77,7 +94,7 @@ export default function LeadDetailDrawer({ lead, onClose }: { lead: WebsiteLeadR
 
   return <div className="fixed inset-0 z-[120] bg-slate-950/50" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="ml-auto h-full w-full max-w-3xl overflow-y-auto bg-slate-50 shadow-2xl">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-5"><div><p className="text-xs font-bold uppercase text-blue-800">Perfil do lead</p><h2 className="text-2xl font-extrabold text-slate-950">{lead.name}</h2></div><button onClick={onClose} className="rounded-xl bg-slate-100 p-3"><X/></button></header>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-5"><div><p className="text-xs font-bold uppercase text-blue-800">Perfil do lead</p><h2 className="text-2xl font-extrabold text-slate-950">{lead.name}</h2></div><div className="flex items-center gap-2">{canDelete && <button type="button" onClick={removeLead} disabled={busy} className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 disabled:opacity-40"><Trash2 size={17}/> Excluir lead</button>}<button onClick={onClose} className="rounded-xl bg-slate-100 p-3"><X/></button></div></header>
       <div className="space-y-6 p-6">
         {message && <p className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">{message}</p>}
 

@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { auth, firestore, firebaseConfigurationError } from "@/config/firebase";
 import { COMPANY } from "@/constants/company";
+import { normalizeLeadTextFields } from "@/lib/leadText";
 import type { AuditLogRecord, BrokerInput, BrokerRecord, CrmBackupData, CrmImportPreview, CrmImportResult, DistributionSettings, IntegrationSettings, LeadActivityRecord, OrganizationAccessRecord, SaleInput, SaleInstallmentRecord, SaleRecord, SecuritySettings, WebsiteLeadInput, WebsiteLeadRecord } from "@/types/admin";
 
 const base = ["organizations", COMPANY.organizationId] as const;
@@ -142,18 +143,18 @@ function normalizeReference(value: string) {
 
 export async function createLead(input: WebsiteLeadInput) {
   const db = requireFirestore();
-  const phone = cleanPhone(input.phone);
-  if (input.name.trim().length < 2) throw new Error("Informe o nome do cliente.");
+  const normalizedInput = normalizeLeadTextFields(input);
+  const phone = cleanPhone(normalizedInput.phone);
+  if (normalizedInput.name.trim().length < 2) throw new Error("Informe o nome do cliente.");
   if (phone.length < 10 || phone.length > 11) throw new Error("Informe um WhatsApp válido com DDD.");
 
   const existing = await getDocs(collection(db, ...base, "leads"));
   const duplicate = existing.docs.find((item) => cleanPhone(String(item.data().phone ?? "")) === phone);
   if (duplicate) throw new Error("Já existe um cliente cadastrado com este WhatsApp.");
 
-  const { importedCreatedAt, ...lead } = input;
+  const { importedCreatedAt, ...lead } = normalizedInput;
   const result = await addDoc(collection(db, ...base, "leads"), {
     ...lead,
-    name: lead.name.trim(),
     phone,
     status: "active",
     source: lead.source || "manual",
@@ -217,7 +218,8 @@ export async function importCrmData(preview: CrmImportPreview): Promise<CrmImpor
       continue;
     }
     const ref = doc(collection(db, ...base, "leads"));
-    const { importedCreatedAt, assignedTo: assignedReference, ...lead } = item.lead;
+    const normalizedLead = normalizeLeadTextFields(item.lead);
+    const { importedCreatedAt, assignedTo: assignedReference, ...lead } = normalizedLead;
     const assignedTo = brokerByReference.get(normalizeReference(assignedReference)) ?? "";
     batch.set(ref, {
       ...lead,
@@ -455,8 +457,72 @@ export async function distributeUnassignedLeads(leadIds: string[]) {
 
 
 export async function updateLeadProfile(leadId: string, data: Partial<Pick<WebsiteLeadRecord, "name" | "phone" | "email" | "city" | "propertyInterest" | "income" | "fgts" | "notes" | "nextContactAt" | "lastContactAt">>) {
-  await updateDoc(doc(requireFirestore(), ...base, "leads", leadId), { ...data, updatedAt: serverTimestamp() });
-  await writeAudit("Perfil do cliente atualizado", "lead", leadId, String(data.name ?? "Cliente"), { fields: Object.keys(data) });
+  const normalized = normalizeLeadTextFields(data);
+  if (normalized.name !== undefined && normalized.name.length < 2) throw new Error("O nome do cliente não pode ficar vazio.");
+  if (normalized.phone !== undefined && (normalized.phone.length < 10 || normalized.phone.length > 11)) throw new Error("O WhatsApp precisa ter DDD e 10 ou 11 dígitos.");
+  await updateDoc(doc(requireFirestore(), ...base, "leads", leadId), { ...normalized, updatedAt: serverTimestamp() });
+  await writeAudit("Perfil do cliente atualizado", "lead", leadId, String(normalized.name ?? "Cliente"), { fields: Object.keys(normalized) });
+}
+
+export async function deleteLead(leadId: string) {
+  const db = requireFirestore();
+  const leadRef = doc(db, ...base, "leads", leadId);
+  const [lead, linkedSales, activities] = await Promise.all([
+    getDoc(leadRef),
+    getDocs(query(collection(db, ...base, "sales"), where("leadId", "==", leadId), limit(1))),
+    getDocs(collection(db, ...base, "leads", leadId, "activities")),
+  ]);
+
+  if (!lead.exists()) throw new Error("Lead não encontrado.");
+  if (!linkedSales.empty) throw new Error("Este lead possui uma venda vinculada e não pode ser excluído.");
+
+  for (let index = 0; index < activities.docs.length; index += 400) {
+    const batch = writeBatch(db);
+    activities.docs.slice(index, index + 400).forEach((activity) => batch.delete(activity.ref));
+    await batch.commit();
+  }
+
+  await deleteDoc(leadRef);
+  await writeAudit("Lead excluído", "lead", leadId, String(lead.data().name ?? "Cliente"), { phone: String(lead.data().phone ?? "") });
+}
+
+export async function standardizeExistingLeads() {
+  const db = requireFirestore();
+  const snapshot = await getDocs(collection(db, ...base, "leads"));
+  let changed = 0;
+  let batch = writeBatch(db);
+  let operations = 0;
+
+  const flush = async () => {
+    if (!operations) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    operations = 0;
+  };
+
+  for (const item of snapshot.docs) {
+    const data = item.data();
+    const original = {
+      name: String(data.name ?? ""),
+      phone: String(data.phone ?? ""),
+      email: String(data.email ?? ""),
+      city: String(data.city ?? ""),
+      propertyInterest: String(data.propertyInterest ?? ""),
+      campaign: String(data.campaign ?? ""),
+    };
+    const normalized = normalizeLeadTextFields(original);
+    const hasChanges = Object.keys(original).some((field) => original[field as keyof typeof original] !== normalized[field as keyof typeof normalized]);
+    if (!hasChanges) continue;
+
+    batch.update(item.ref, { ...normalized, updatedAt: serverTimestamp() });
+    operations += 1;
+    changed += 1;
+    if (operations >= 400) await flush();
+  }
+
+  await flush();
+  await writeAudit("Cadastros padronizados", "settings", "lead-standardization", "Padronização dos leads", { changed });
+  return changed;
 }
 
 function toActivity(data: DocumentData, id: string): LeadActivityRecord {
