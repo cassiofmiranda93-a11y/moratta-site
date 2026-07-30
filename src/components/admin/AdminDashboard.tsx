@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -14,29 +14,78 @@ import {
   UploadCloud,
   Users,
   UserRoundCheck,
+  PlugZap,
+  BarChart3,
+  Sparkles,
+  WalletCards,
+  TrendingUp,
+  BellRing,
+  FileClock,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationAccess } from "@/hooks/useOrganizationAccess";
 import { useCatalog } from "@/hooks/useCatalog";
 import { PROJECTS } from "@/data/projects";
 import { firebaseConfigured, firebaseConfigurationError } from "@/config/firebase";
 import { loginWithGoogle, logout } from "@/services/authService";
 import { archiveDevelopment, archiveProperty, seedDevelopments } from "@/services/catalogService";
+import { subscribeToBrokers, subscribeToSecuritySettings } from "@/services/adminService";
 import { formatCurrency } from "@/lib/catalog";
 import DevelopmentForm from "./DevelopmentForm";
 import PropertyForm from "./PropertyForm";
 import AdminLeadsPanel from "./AdminLeadsPanel";
 import TeamPanel from "./TeamPanel";
+import ExecutiveDashboard from "./ExecutiveDashboard";
+import IntegrationsPanel from "./IntegrationsPanel";
+import AtlasOpportunitiesPanel from "./AtlasOpportunitiesPanel";
+import DirectorateDashboard from "./DirectorateDashboard";
+import SalesFinancePanel from "./SalesFinancePanel";
+import AlertsPanel from "./AlertsPanel";
+import AuditBackupPanel from "./AuditBackupPanel";
+import SecurityAccessPanel from "./SecurityAccessPanel";
 import type { Development, PropertyUnit } from "@/types/project";
+import type { BrokerRecord, SecuritySettings, UserRole } from "@/types/admin";
+import { hasPermission, roleLabel } from "@/lib/permissions";
 
-type Tab = "overview" | "developments" | "properties" | "leads" | "team";
+type Tab = "overview" | "alerts" | "atlas" | "directorate" | "finance" | "catalog" | "developments" | "properties" | "leads" | "team" | "integrations" | "audit" | "security";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { access, loading: accessLoading } = useOrganizationAccess(user?.email);
+  const isBootstrapAdmin = [
+    "cassiofmiranda93@gmail.com",
+    "cassio@morattars.com.br",
+  ].includes(user?.email?.trim().toLowerCase() ?? "");
   const { developments, properties, loading, error } = useCatalog();
   const [tab, setTab] = useState<Tab>("overview");
   const [developmentForm, setDevelopmentForm] = useState<Development | null | undefined>(undefined);
   const [propertyForm, setPropertyForm] = useState<PropertyUnit | null | undefined>(undefined);
   const [actionMessage, setActionMessage] = useState("");
+  const [members, setMembers] = useState<BrokerRecord[]>([]);
+  const [security, setSecurity] = useState<SecuritySettings>({ strictAccess: false, auditRetentionDays: 365, requireRegisteredMember: true });
+  const [securityReadDenied, setSecurityReadDenied] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToBrokers(setMembers, () => undefined);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToSecuritySettings((next) => { setSecurity(next); setSecurityReadDenied(false); }, () => setSecurityReadDenied(true));
+  }, [user]);
+
+  const currentMember = useMemo(() => members.find((member) => member.id === access?.memberId || (member.email && member.email.toLowerCase() === user?.email?.toLowerCase())), [members, access?.memberId, user?.email]);
+  const userRole: UserRole = access?.role ?? currentMember?.role ?? "admin";
+  const currentBrokerId = access?.memberId ?? currentMember?.id ?? "";
+  const canManageTeam = hasPermission(userRole, "manage_team");
+  const canViewFinance = hasPermission(userRole, "view_finance");
+  const canManageFinance = hasPermission(userRole, "manage_finance");
+  const canManageIntegrations = hasPermission(userRole, "manage_integrations");
+  const canManageCatalog = hasPermission(userRole, "manage_catalog");
+  const canViewAudit = hasPermission(userRole, "view_audit");
+  const canManageSecurity = hasPermission(userRole, "manage_security");
 
   const metrics = useMemo(() => ({
     published: developments.filter((item) => item.status === "published" && item.active).length,
@@ -49,7 +98,7 @@ export default function AdminDashboard() {
     return <SetupMessage />;
   }
 
-  if (authLoading) return <Centered text="Verificando acesso..." />;
+  if (authLoading || (user && accessLoading)) return <Centered text="Verificando acesso..." />;
 
   if (!user) {
     return (
@@ -63,6 +112,10 @@ export default function AdminDashboard() {
         </div>
       </main>
     );
+  }
+
+  if (!isBootstrapAdmin && ((security.strictAccess && !access) || (securityReadDenied && !access) || access?.active === false)) {
+    return <main className="grid min-h-screen place-items-center bg-slate-100 px-6"><div className="w-full max-w-lg rounded-3xl bg-white p-8 text-center shadow-xl"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-amber-100 text-amber-800"><ShieldCheck size={32}/></div><h1 className="mt-6 text-3xl font-extrabold text-slate-950">Acesso não liberado</h1><p className="mt-3 leading-7 text-slate-500">A conta {user.email} não está ativa na equipe da Moratta. Solicite ao administrador o cadastro com este mesmo e-mail.</p><button onClick={() => logout()} className="mt-6 rounded-xl bg-blue-950 px-6 py-3 font-bold text-white">Sair</button></div></main>;
   }
 
   async function runAction(action: () => Promise<unknown>, success: string) {
@@ -86,12 +139,20 @@ export default function AdminDashboard() {
       <div className="mx-auto grid max-w-[1500px] gap-6 px-5 py-6 lg:grid-cols-[240px_1fr]">
         <aside className="h-fit rounded-2xl bg-white p-3 shadow-sm lg:sticky lg:top-24">
           <p className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-400">Gestão</p>
-          <NavButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<Home size={18} />} label="Visão geral" />
-          <NavButton active={tab === "developments"} onClick={() => setTab("developments")} icon={<Building2 size={18} />} label="Empreendimentos" />
-          <NavButton active={tab === "properties"} onClick={() => setTab("properties")} icon={<Home size={18} />} label="Imóveis e unidades" />
-          <NavButton active={tab === "leads"} onClick={() => setTab("leads")} icon={<UserRoundCheck size={18} />} label="Leads do site" />
-          <NavButton active={tab === "team"} onClick={() => setTab("team")} icon={<Users size={18} />} label="Corretores" />
-          <div className="mt-4 border-t border-slate-100 pt-4"><p className="px-3 text-xs text-slate-500">Conectado como</p><p className="mt-1 truncate px-3 text-sm font-semibold text-slate-700">{user.email}</p></div>
+          <NavButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<BarChart3 size={18} />} label="Dashboard CRM" />
+          <NavButton active={tab === "alerts"} onClick={() => setTab("alerts")} icon={<BellRing size={18} />} label="Alertas e prazos" />
+          {userRole !== "finance" && <NavButton active={tab === "atlas"} onClick={() => setTab("atlas")} icon={<Sparkles size={18} />} label="Atlas Comercial" />}
+          {canViewFinance && <NavButton active={tab === "directorate"} onClick={() => setTab("directorate")} icon={<TrendingUp size={18} />} label="Painel da Diretoria" />}
+          {canViewFinance && <NavButton active={tab === "finance"} onClick={() => setTab("finance")} icon={<WalletCards size={18} />} label="Vendas e receitas" />}
+          <NavButton active={tab === "catalog"} onClick={() => setTab("catalog")} icon={<Home size={18} />} label="Visão do catálogo" />
+          {canManageCatalog && <NavButton active={tab === "developments"} onClick={() => setTab("developments")} icon={<Building2 size={18} />} label="Empreendimentos" />}
+          {canManageCatalog && <NavButton active={tab === "properties"} onClick={() => setTab("properties")} icon={<Home size={18} />} label="Imóveis e unidades" />}
+          {userRole !== "finance" && <NavButton active={tab === "leads"} onClick={() => setTab("leads")} icon={<UserRoundCheck size={18} />} label="Clientes e leads" />}
+          {canManageTeam && <NavButton active={tab === "team"} onClick={() => setTab("team")} icon={<Users size={18} />} label="Equipe e acessos" />}
+          {canManageIntegrations && <NavButton active={tab === "integrations"} onClick={() => setTab("integrations")} icon={<PlugZap size={18} />} label="Integrações" />}
+          {canViewAudit && <NavButton active={tab === "audit"} onClick={() => setTab("audit")} icon={<FileClock size={18} />} label="Auditoria e backup" />}
+          {canManageSecurity && <NavButton active={tab === "security"} onClick={() => setTab("security")} icon={<ShieldCheck size={18} />} label="Segurança" />}
+          <div className="mt-4 border-t border-slate-100 pt-4"><p className="px-3 text-xs text-slate-500">Conectado como</p><p className="mt-1 truncate px-3 text-sm font-semibold text-slate-700">{user.email}</p><p className="mt-1 px-3 text-[10px] font-bold uppercase text-blue-800">{roleLabel(userRole)}</p></div>
         </aside>
 
         <main>
@@ -99,7 +160,15 @@ export default function AdminDashboard() {
           {error && <div className="mb-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{error}</div>}
           {loading ? <Centered text="Carregando catálogo..." compact /> : (
             <>
-              {tab === "overview" && (
+              {tab === "overview" && <ExecutiveDashboard currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "alerts" && <AlertsPanel userRole={userRole} currentBrokerId={currentBrokerId} />}
+              {tab === "atlas" && userRole !== "finance" && <AtlasOpportunitiesPanel currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "directorate" && canViewFinance && <DirectorateDashboard currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "finance" && canManageFinance && <SalesFinancePanel currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "audit" && canViewAudit && <AuditBackupPanel />}
+              {tab === "security" && canManageSecurity && <SecurityAccessPanel />}
+
+              {tab === "catalog" && (
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm font-bold text-blue-800">PAINEL DO SITE</p><h1 className="text-3xl font-extrabold text-slate-950">Visão geral do catálogo</h1></div><button onClick={() => runAction(() => seedDevelopments(PROJECTS), "Catálogo inicial importado.")} className="flex items-center gap-2 rounded-xl border border-blue-950 px-4 py-3 font-bold text-blue-950"><UploadCloud size={18} /> Importar catálogo inicial</button></div>
                   <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -125,9 +194,11 @@ export default function AdminDashboard() {
                 </section>
               )}
 
-              {tab === "leads" && <AdminLeadsPanel />}
+              {tab === "leads" && userRole !== "finance" && <AdminLeadsPanel userRole={userRole} currentBrokerId={currentBrokerId} />}
 
-              {tab === "team" && <TeamPanel />}
+              {tab === "team" && <TeamPanel currentUserRole={userRole} />}
+
+              {tab === "integrations" && <IntegrationsPanel />}
 
               {tab === "properties" && (
                 <section>

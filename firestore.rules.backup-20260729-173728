@@ -167,15 +167,5 @@ service cloud.firestore {
       allow create, update: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
       allow delete: if hasRole(organizationId, ['admin']);
     }
-    // ATLAS_MORATTA_OWNER_READ
-    // Leitura administrativa exclusiva para os dois e-mails do Cássio.
-    match /organizations/{organizationId}/{document=**} {
-      allow read: if signedIn()
-        && organizationId == 'moratta'
-        && authEmail() in [
-          'cassiofmiranda93@gmail.com',
-          'cassio@morattars.com.br'
-        ];
-    }
   }
 }
