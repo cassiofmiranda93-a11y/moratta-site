@@ -5,7 +5,6 @@ import Footer from "@/components/layout/Footer";
 import {
   Hero,
   Benefits,
-  Stats,
   Projects,
   About,
   CTA,
@@ -18,11 +17,9 @@ export default function Home() {
 
       <Hero />
 
-      <Stats />
+      <Projects />
 
       <Benefits />
-
-      <Projects />
 
       <About />
 

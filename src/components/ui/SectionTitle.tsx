@@ -11,12 +11,12 @@ export default function SectionTitle({
 }: SectionTitleProps) {
   return (
     <div className={center ? "text-center" : ""}>
-      <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+      <h2 className="text-3xl font-extrabold tracking-[-0.03em] text-slate-950 md:text-4xl">
         {title}
       </h2>
 
       {subtitle && (
-        <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+        <p className={`${center ? "mx-auto" : ""} mt-4 max-w-3xl text-lg leading-8 text-slate-600`}>
           {subtitle}
         </p>
       )}

@@ -2,45 +2,45 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeCheck,
-  CheckCircle2,
+  Building2,
+  Check,
+  MapPin,
   MessageCircle,
 } from "lucide-react";
 
 import { Container } from "@/components/ui";
+import { WHATSAPP_URL } from "@/constants/company";
 
 export default function Hero() {
-  const whatsappUrl =
-    `https://wa.me/5551996594956?text=${encodeURIComponent("Olá! Quero saber mais sobre financiamento e imóveis disponíveis.")}`;
+  const whatsappUrl = `${WHATSAPP_URL}?text=${encodeURIComponent(
+    "Olá! Quero encontrar um imóvel com a Moratta.",
+  )}`;
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#102A46] via-[#173B63] to-[#1E4D7B] text-white">
-      <div className="absolute inset-0">
-        <div className="absolute -left-40 top-16 h-80 w-80 rounded-full bg-[#D9AA45]/10 blur-3xl" />
-        <div className="absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
-      </div>
-
+    <section className="overflow-hidden bg-[#f5f7fa]">
       <Container>
-        <div className="relative grid min-h-[720px] items-center gap-14 py-16 lg:grid-cols-2 lg:py-20">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
-              <BadgeCheck size={17} className="text-[#E7C468]" />
-              Especialistas em financiamento imobiliário
-            </span>
-
-            <h1 className="mt-7 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-              Seu primeiro imóvel está mais perto do que você imagina.
-            </h1>
-
-            <p className="mt-6 max-w-xl text-base leading-7 text-slate-200 sm:text-lg sm:leading-8">
-              A Moratta acompanha você desde a análise do crédito até a entrega
-              das chaves, com orientação clara, atendimento próximo e imóveis
-              selecionados em Gravataí e Região Metropolitana.
+        <div className="grid items-center gap-10 py-12 lg:min-h-[620px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:py-16">
+          <div className="max-w-xl">
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-blue-900">
+              <MapPin size={17} />
+              Gravataí e Região Metropolitana
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link href="#empreendimentos" className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-bold text-blue-950 shadow-lg hover:bg-slate-100">
-                Ver empreendimentos
+            <h1 className="mt-5 text-4xl font-extrabold leading-[1.08] tracking-[-0.04em] text-slate-950 sm:text-5xl lg:text-6xl">
+              Encontre um lar que combine com a sua vida.
+            </h1>
+
+            <p className="mt-6 max-w-lg text-lg leading-8 text-slate-600">
+              Casas, apartamentos e lançamentos selecionados, com orientação
+              simples para financiar e comprar com segurança.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="#empreendimentos"
+                className="inline-flex items-center justify-center rounded-lg bg-blue-950 px-6 py-3.5 font-bold text-white hover:bg-blue-800"
+              >
+                Ver imóveis
                 <ArrowRight className="ml-2" size={18} />
               </Link>
 
@@ -48,66 +48,51 @@ export default function Hero() {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-xl border-2 border-white px-6 py-3 font-bold text-white hover:bg-white hover:text-blue-950"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-6 py-3.5 font-bold text-slate-800 hover:border-blue-900 hover:text-blue-900"
               >
                 <MessageCircle className="mr-2" size={18} />
-                Falar no WhatsApp
+                Falar com a Moratta
               </a>
             </div>
 
-            <div className="mt-9 grid gap-3 text-sm text-slate-200 sm:grid-cols-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={17} className="text-[#E7C468]" />
-                Análise de crédito
-              </div>
-
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={17} className="text-[#E7C468]" />
-                Uso do FGTS
-              </div>
-
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={17} className="text-[#E7C468]" />
-                Acompanhamento completo
-              </div>
+            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+              {["Financiamento Caixa", "Uso do FGTS", "Minha Casa Minha Vida"].map(
+                (item) => (
+                  <span key={item} className="flex items-center gap-1.5">
+                    <Check size={16} className="text-emerald-600" />
+                    {item}
+                  </span>
+                ),
+              )}
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-xl lg:mx-0">
-            <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-2 shadow-2xl">
+          <div className="relative">
+            <div className="relative min-h-[390px] overflow-hidden rounded-2xl bg-slate-200 shadow-[0_24px_70px_rgba(15,23,42,0.12)] sm:min-h-[500px]">
               <Image
-                src="/images/hero/hero-1.jpeg"
-                alt="Família realizando o sonho da casa própria"
-                width={900}
-                height={700}
+                src="/images/projects/campo-belo/campo-belo-1.jpg"
+                alt="Casa disponível pela Moratta Imóveis"
+                fill
                 priority
-                className="h-[420px] w-full rounded-[22px] object-cover sm:h-[520px]"
+                sizes="(max-width: 1024px) 100vw, 55vw"
+                className="object-cover"
               />
 
-              <div className="absolute inset-x-2 bottom-2 rounded-b-[22px] bg-gradient-to-t from-[#102A46]/90 via-[#102A46]/45 to-transparent px-6 pb-6 pt-20">
-                <p className="text-sm font-medium text-slate-200">
-                  Seu caminho até o imóvel próprio
-                </p>
-
-                <p className="mt-1 text-xl font-bold">
-                  Atendimento do início ao fim
-                </p>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 to-transparent px-6 pb-6 pt-24 text-white">
+                <p className="text-sm font-medium text-white/75">Campo Belo</p>
+                <p className="mt-1 text-xl font-bold">Casas com pátio em Gravataí</p>
               </div>
             </div>
 
-            <div className="absolute -bottom-6 left-4 right-4 rounded-2xl bg-white p-5 text-slate-900 shadow-2xl sm:-left-8 sm:right-auto sm:w-[320px]">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-[#D9AA45]/15 p-2.5">
-                  <BadgeCheck className="text-[#D9AA45]" size={24} />
-                </div>
-
-                <div>
-                  <h2 className="font-bold">Financiamento facilitado</h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Orientação para Caixa, FGTS e Minha Casa Minha Vida.
-                  </p>
-                </div>
+            <div className="absolute -bottom-5 left-5 flex items-center gap-3 rounded-xl bg-white px-5 py-4 shadow-xl sm:left-[-28px]">
+              <span className="rounded-lg bg-blue-50 p-2.5 text-blue-900">
+                <Building2 size={22} />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Atendimento completo
+                </p>
+                <p className="font-bold text-slate-900">Da análise às chaves</p>
               </div>
             </div>
           </div>

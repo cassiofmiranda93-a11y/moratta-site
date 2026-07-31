@@ -10,26 +10,26 @@ export default function Footer() {
   return (
     <footer id="contato" className="bg-slate-950 text-white">
       <Container>
-        <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4">
-          <div>
+        <div className="grid gap-10 py-12 md:grid-cols-[1.25fr_1fr_0.8fr]">
+          <div className="max-w-md">
             <Image
               src="/images/logo/logo-moratta.png"
               alt="Moratta Imóveis"
               width={190}
               height={70}
-              className="h-14 w-auto rounded bg-white p-2 object-contain"
+              className="h-12 w-auto rounded bg-white p-2 object-contain"
             />
 
-            <p className="mt-5 leading-7 text-slate-300">
-              Especialistas em imóveis financiados pela Caixa, Minha Casa Minha
-              Vida e imóveis residenciais na Região Metropolitana de Porto Alegre.
+            <p className="mt-5 text-sm leading-7 text-slate-300">
+              Imóveis e financiamento com atendimento próximo em Gravataí e
+              Região Metropolitana.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-6 text-lg font-semibold">Contato</h3>
+            <h3 className="mb-5 font-bold">Contato</h3>
 
-            <div className="space-y-4 text-slate-300">
+            <div className="space-y-3 text-sm text-slate-300">
               <a href={WHATSAPP_URL} className="flex items-center gap-3">
                 <Phone size={18} />
                 {COMPANY.phone}
@@ -51,26 +51,15 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="mb-6 text-lg font-semibold">Navegação</h3>
+            <h3 className="mb-5 font-bold">Acompanhe</h3>
 
-            <nav className="flex flex-col gap-3 text-slate-300">
-              <Link href="/">Início</Link>
-              <Link href="/empreendimentos">Empreendimentos</Link>
-              <Link href="/#sobre">Sobre</Link>
-              <Link href="/#contato">Contato</Link>
-            </nav>
-          </div>
-
-          <div>
-            <h3 className="mb-6 text-lg font-semibold">Redes sociais</h3>
-
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <a
                 href={SOCIAL.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
-                className="rounded-full bg-slate-800 p-3 hover:bg-pink-700"
+                className="rounded-lg bg-slate-800 p-2.5 hover:bg-pink-700"
               >
                 <FaInstagram size={20} />
               </a>
@@ -80,7 +69,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
-                className="rounded-full bg-slate-800 p-3 hover:bg-blue-700"
+                className="rounded-lg bg-slate-800 p-2.5 hover:bg-blue-700"
               >
                 <FaFacebookF size={20} />
               </a>
@@ -90,19 +79,22 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp"
-                className="rounded-full bg-green-600 p-3 hover:bg-green-500"
+                className="rounded-lg bg-green-600 p-2.5 hover:bg-green-500"
               >
                 <FaWhatsapp size={20} />
               </a>
             </div>
 
-            <p className="mt-8 text-sm text-slate-400">CRECI/RS</p>
+            <nav className="mt-6 flex flex-col gap-2 text-sm text-slate-400">
+              <Link href="/empreendimentos">Empreendimentos</Link>
+              <Link href="/#sobre">Sobre a Moratta</Link>
+            </nav>
           </div>
         </div>
 
-        <div className="border-t border-slate-800 py-6 text-center text-sm text-slate-400">
-          © {new Date().getFullYear()} Moratta Imóveis. Todos os direitos
-          reservados.
+        <div className="flex flex-col justify-between gap-2 border-t border-slate-800 py-5 text-xs text-slate-500 sm:flex-row">
+          <span>© {new Date().getFullYear()} Moratta Imóveis.</span>
+          <span>CRECI/RS</span>
         </div>
       </Container>
     </footer>

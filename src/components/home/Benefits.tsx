@@ -1,65 +1,68 @@
+import { BadgeCheck, House, KeyRound } from "lucide-react";
+import { Container } from "@/components/ui";
+
 export default function Benefits() {
   const benefits = [
     {
-      title: "Especialistas no primeiro imóvel",
+      number: "01",
+      title: "Conte o que procura",
       description:
-        "Acompanhamento completo para quem deseja conquistar a casa própria com segurança.",
-      icon: "🏡",
+        "Entendemos sua renda, sua região e o tipo de imóvel ideal.",
+      icon: House,
     },
     {
-      title: "Análise de crédito gratuita",
+      number: "02",
+      title: "Confira suas possibilidades",
       description:
-        "Verificamos sua aprovação antes de iniciar a busca pelo imóvel ideal.",
-      icon: "💳",
+        "Analisamos financiamento, FGTS e condições disponíveis.",
+      icon: BadgeCheck,
     },
     {
-      title: "Segurança jurídica",
+      number: "03",
+      title: "Compre com tranquilidade",
       description:
-        "Todo o processo é acompanhado para garantir tranquilidade na compra.",
-      icon: "⚖️",
-    },
-    {
-      title: "Atendimento personalizado",
-      description:
-        "Cada cliente recebe uma orientação de acordo com sua realidade financeira.",
-      icon: "🤝",
+        "Acompanhamos documentos, contrato e entrega das chaves.",
+      icon: KeyRound,
     },
   ];
 
   return (
-    <section className="bg-white py-24">
-      <div className="mx-auto max-w-7xl px-6">
-
-        <div className="mb-14 text-center">
-          <h2 className="text-4xl font-bold text-gray-900">
-            Por que escolher a Moratta?
+    <section className="bg-[#f5f7fa] py-20 lg:py-24">
+      <Container>
+        <div className="max-w-2xl">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-900">
+            Um caminho simples
+          </p>
+          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">
+            Comprar seu imóvel em três passos
           </h2>
-
-          <p className="mt-4 text-lg text-gray-600">
-            Cuidamos de todas as etapas para você comprar seu imóvel com tranquilidade.
+          <p className="mt-4 text-lg leading-8 text-slate-600">
+            Sem complicação e com orientação em cada decisão.
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
           {benefits.map((item) => (
             <div
               key={item.title}
-              className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+              className="rounded-2xl border border-slate-200 bg-white p-7"
             >
-              <div className="mb-6 text-5xl">{item.icon}</div>
-
-              <h3 className="mb-3 text-xl font-bold text-gray-900">
+              <div className="flex items-center justify-between">
+                <span className="rounded-lg bg-blue-50 p-2.5 text-blue-900">
+                  <item.icon size={23} />
+                </span>
+                <span className="text-sm font-extrabold text-slate-300">{item.number}</span>
+              </div>
+              <h3 className="mt-7 text-xl font-bold text-slate-950">
                 {item.title}
               </h3>
-
-              <p className="text-gray-600 leading-7">
+              <p className="mt-3 leading-7 text-slate-600">
                 {item.description}
               </p>
             </div>
           ))}
         </div>
-
-      </div>
+      </Container>
     </section>
   );
 }

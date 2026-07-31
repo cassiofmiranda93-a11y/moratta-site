@@ -4,19 +4,23 @@ import DevelopmentCatalog from "@/components/catalog/DevelopmentCatalog";
 
 export default function Projects() {
   return (
-    <section id="empreendimentos" className="bg-slate-50 py-24">
+    <section id="empreendimentos" className="bg-white py-20 lg:py-24">
       <Container>
-        <SectionTitle
-          title="Empreendimentos em destaque"
-          subtitle="Conheça oportunidades selecionadas pela Moratta para diferentes perfis de renda e momento de compra."
-        />
-        <div className="mt-12">
-          <DevelopmentCatalog compact />
-        </div>
-        <div className="mt-10 text-center">
-          <Link href="/empreendimentos" className="inline-flex rounded-xl border border-blue-950 px-6 py-3 font-bold text-blue-950 transition hover:bg-blue-950 hover:text-white">
-            Ver todos os empreendimentos
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <SectionTitle
+            center={false}
+            title="Oportunidades em destaque"
+            subtitle="Imóveis escolhidos para facilitar sua busca."
+          />
+          <Link
+            href="/empreendimentos"
+            className="inline-flex shrink-0 items-center font-bold text-blue-900 hover:text-blue-700"
+          >
+            Ver todos os imóveis
           </Link>
+        </div>
+        <div className="mt-10">
+          <DevelopmentCatalog compact />
         </div>
       </Container>
     </section>
