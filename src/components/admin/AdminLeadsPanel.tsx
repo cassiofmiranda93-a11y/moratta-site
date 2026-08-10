@@ -61,7 +61,7 @@ export default function AdminLeadsPanel({
   const [brokerFilter, setBrokerFilter] = useState(userRole === "broker" ? currentBrokerId : "");
   const [sourceFilter, setSourceFilter] = useState("");
   const [message, setMessage] = useState("");
-  const [view, setView] = useState<ViewMode>("kanban");
+  const [view, setView] = useState<ViewMode>("table");
   const [busy, setBusy] = useState(false);
   const [selectedLead, setSelectedLead] = useState<WebsiteLeadRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());

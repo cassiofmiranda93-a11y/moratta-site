@@ -1,4 +1,4 @@
-import { normalizeCampaign, normalizeCity, normalizeEmail, normalizeLeadPhone, normalizePersonName, normalizePropertyInterest } from "@/lib/leadText";
+import { normalizeCampaign, normalizeCity, normalizeEmail, normalizeLeadPhone, normalizePersonName, normalizePropertyInterest } from "./leadText.ts";
 import type {
   CrmImportIssue,
   CrmImportPreview,

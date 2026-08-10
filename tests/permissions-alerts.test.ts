@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCrmAlerts } from "../src/lib/crmAlerts.ts";
+import { buildCrmAlerts, crmAlertOccurrenceId, filterOpenCrmAlerts } from "../src/lib/crmAlerts.ts";
 import { hasPermission } from "../src/lib/permissions.ts";
 import type { SaleRecord, WebsiteLeadRecord } from "../src/types/admin.ts";
 
@@ -36,4 +36,18 @@ test("gera alertas comerciais e financeiros vencidos", () => {
   assert.ok(alerts.some((item) => item.type === "lead_return"));
   assert.ok(alerts.some((item) => item.type === "invoice_due"));
   assert.ok(alerts.some((item) => item.type === "payment_overdue"));
+});
+
+test("alerta finalizado some apenas para a mesma ocorrência", () => {
+  const [alert] = buildCrmAlerts(
+    [lead({ nextContactAt: "2026-07-27T10:00:00.000Z" })],
+    [],
+    new Date("2026-07-28T12:00:00.000Z"),
+  );
+  const occurrenceId = crmAlertOccurrenceId(alert);
+  assert.equal(filterOpenCrmAlerts([alert], [occurrenceId]).length, 0);
+
+  const futureOccurrence = { ...alert, dueAt: "2026-08-03T10:00:00.000Z" };
+  assert.notEqual(crmAlertOccurrenceId(futureOccurrence), occurrenceId);
+  assert.equal(filterOpenCrmAlerts([futureOccurrence], [occurrenceId]).length, 1);
 });

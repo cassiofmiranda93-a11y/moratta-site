@@ -161,6 +161,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /organizations/{organizationId}/alertCompletions/{completionId} {
+      allow read, create, update: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow delete: if hasRole(organizationId, ['admin', 'manager']);
+    }
+
     match /organizations/{organizationId}/whatsappMessages/{messageId} {
       allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
         || (hasRole(organizationId, ['broker']) && !strictAccess(organizationId));

@@ -19,8 +19,9 @@ import {
 } from "firebase/firestore";
 import { auth, firestore, firebaseConfigurationError } from "@/config/firebase";
 import { COMPANY } from "@/constants/company";
+import { crmAlertOccurrenceId } from "@/lib/crmAlerts";
 import { normalizeLeadTextFields } from "@/lib/leadText";
-import type { AuditLogRecord, BrokerInput, BrokerRecord, CrmBackupData, CrmImportPreview, CrmImportResult, DistributionSettings, IntegrationSettings, LeadActivityRecord, OrganizationAccessRecord, SaleInput, SaleInstallmentRecord, SaleRecord, SecuritySettings, WebsiteLeadInput, WebsiteLeadRecord } from "@/types/admin";
+import type { AuditLogRecord, BrokerInput, BrokerRecord, CrmAlert, CrmBackupData, CrmImportPreview, CrmImportResult, DistributionSettings, IntegrationSettings, LeadActivityRecord, OrganizationAccessRecord, SaleInput, SaleInstallmentRecord, SaleRecord, SecuritySettings, WebsiteLeadInput, WebsiteLeadRecord } from "@/types/admin";
 
 const base = ["organizations", COMPANY.organizationId] as const;
 
@@ -583,6 +584,41 @@ export function subscribeToSales(onData: (items: SaleRecord[]) => void, onError:
     (snapshot) => onData(snapshot.docs.map((item) => toSale(item.data(), item.id)).sort((a, b) => (b.saleDate || b.createdAt || "").localeCompare(a.saleDate || a.createdAt || ""))),
     onError,
   );
+}
+
+export function subscribeToCompletedCrmAlerts(
+  onData: (occurrenceIds: string[]) => void,
+  onError: (error: Error) => void,
+) {
+  if (!firestore) return () => undefined;
+  return onSnapshot(
+    collection(firestore, ...base, "alertCompletions"),
+    (snapshot) => onData(snapshot.docs.map((item) => item.id)),
+    onError,
+  );
+}
+
+export async function completeCrmAlert(alert: CrmAlert) {
+  const db = requireFirestore();
+  const occurrenceId = crmAlertOccurrenceId(alert);
+  const actor = currentActor();
+  await setDoc(doc(db, ...base, "alertCompletions", occurrenceId), {
+    alertId: alert.id,
+    alertType: alert.type,
+    entityType: alert.entityType,
+    entityId: alert.entityId,
+    title: alert.title,
+    dueAt: alert.dueAt,
+    completedByUid: actor.actorUid,
+    completedByEmail: actor.actorEmail,
+    completedAt: serverTimestamp(),
+  });
+  await writeAudit("Alerta finalizado", alert.entityType, alert.entityId, alert.title, {
+    alertId: alert.id,
+    occurrenceId,
+    dueAt: alert.dueAt,
+  });
+  return occurrenceId;
 }
 
 export async function saveSale(input: SaleInput, id?: string) {

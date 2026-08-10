@@ -12,6 +12,16 @@ function daysBetween(from: number, to: number) {
   return Math.floor((to - from) / DAY);
 }
 
+export function crmAlertOccurrenceId(alert: Pick<CrmAlert, "id" | "dueAt">) {
+  const dueAt = dateMs(alert.dueAt);
+  return `${alert.id}-${dueAt ?? alert.dueAt}`;
+}
+
+export function filterOpenCrmAlerts(alerts: CrmAlert[], completedOccurrences: Iterable<string>) {
+  const completed = new Set(completedOccurrences);
+  return alerts.filter((alert) => !completed.has(crmAlertOccurrenceId(alert)));
+}
+
 export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], now = new Date()): CrmAlert[] {
   const current = now.getTime();
   const alerts: CrmAlert[] = [];
