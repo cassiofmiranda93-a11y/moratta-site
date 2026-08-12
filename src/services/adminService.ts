@@ -57,6 +57,7 @@ function toLead(data: DocumentData, id: string): WebsiteLeadRecord {
     notes: String(data.notes ?? ""),
     nextContactAt: toIsoString(data.nextContactAt),
     lastContactAt: toIsoString(data.lastContactAt),
+    importedAt: toIsoString(data.importedAt),
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
   };

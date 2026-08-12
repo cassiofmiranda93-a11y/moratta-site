@@ -51,3 +51,41 @@ test("alerta finalizado some apenas para a mesma ocorrência", () => {
   assert.notEqual(crmAlertOccurrenceId(futureOccurrence), occurrenceId);
   assert.equal(filterOpenCrmAlerts([futureOccurrence], [occurrenceId]).length, 1);
 });
+
+test("nao gera alerta de cliente sem contato para lead importado de planilha", () => {
+  const alerts = buildCrmAlerts(
+    [
+      lead({
+        id: "lead-importado",
+        stage: "new",
+        lastContactAt: null,
+        importedAt: "2026-07-20T12:00:00.000Z",
+        createdAt: "2026-07-20T12:00:00.000Z",
+        updatedAt: "2026-07-20T12:00:00.000Z",
+      }),
+      lead({
+        id: "lead-manual",
+        stage: "new",
+        lastContactAt: null,
+        importedAt: null,
+        createdAt: "2026-07-20T12:00:00.000Z",
+        updatedAt: "2026-07-20T12:00:00.000Z",
+      }),
+    ],
+    [],
+    new Date("2026-07-28T12:00:00.000Z"),
+  );
+
+  assert.equal(alerts.some((item) => item.type === "lead_inactive" && item.entityId === "lead-importado"), false);
+  assert.equal(alerts.some((item) => item.type === "lead_inactive" && item.entityId === "lead-manual"), true);
+});
+
+test("mantem retorno vencido quando lead importado possui data de retorno", () => {
+  const alerts = buildCrmAlerts(
+    [lead({ importedAt: "2026-07-20T12:00:00.000Z", nextContactAt: "2026-07-27T10:00:00.000Z" })],
+    [],
+    new Date("2026-07-28T12:00:00.000Z"),
+  );
+
+  assert.ok(alerts.some((item) => item.type === "lead_return"));
+});

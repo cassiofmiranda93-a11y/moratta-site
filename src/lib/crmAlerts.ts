@@ -44,7 +44,7 @@ export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], 
     }
 
     const reference = dateMs(lead.lastContactAt) ?? dateMs(lead.updatedAt) ?? dateMs(lead.createdAt);
-    if (reference !== null) {
+    if (!lead.importedAt && reference !== null) {
       const inactivity = daysBetween(reference, current);
       if (inactivity >= 5) {
         alerts.push({

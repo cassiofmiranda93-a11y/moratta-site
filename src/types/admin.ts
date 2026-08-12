@@ -17,6 +17,7 @@ export interface WebsiteLeadRecord {
   notes: string;
   nextContactAt: string | null;
   lastContactAt: string | null;
+  importedAt?: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
