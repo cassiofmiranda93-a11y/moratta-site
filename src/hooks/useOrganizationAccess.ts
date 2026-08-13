@@ -5,25 +5,22 @@ import { subscribeToCurrentAccess } from "@/services/adminService";
 import type { OrganizationAccessRecord } from "@/types/admin";
 
 export function useOrganizationAccess(email?: string | null) {
-  const [access, setAccess] = useState<OrganizationAccessRecord | null>(null);
-  const [loading, setLoading] = useState(Boolean(email));
-  const [error, setError] = useState("");
+  const [result, setResult] = useState<{
+    email: string;
+    access: OrganizationAccessRecord | null;
+    error: string;
+  }>({ email: "", access: null, error: "" });
 
   useEffect(() => {
-    if (!email) {
-      setAccess(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    if (!email) return;
     return subscribeToCurrentAccess(email, (next) => {
-      setAccess(next);
-      setLoading(false);
+      setResult({ email, access: next, error: "" });
     }, (nextError) => {
-      setError(nextError.message);
-      setLoading(false);
+      setResult({ email, access: null, error: nextError.message });
     });
   }, [email]);
 
-  return { access, loading, error };
+  if (!email) return { access: null, loading: false, error: "" };
+  if (result.email !== email) return { access: null, loading: true, error: "" };
+  return { access: result.access, loading: false, error: result.error };
 }

@@ -18,6 +18,7 @@ export interface WebsiteLeadRecord {
   nextContactAt: string | null;
   lastContactAt: string | null;
   importedAt?: string | null;
+  lostAt?: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -215,6 +216,7 @@ export interface CrmAlert {
   description: string;
   entityType: "lead" | "sale";
   entityId: string;
+  brokerId: string;
   dueAt: string;
 }
 

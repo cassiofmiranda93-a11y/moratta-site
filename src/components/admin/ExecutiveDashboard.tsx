@@ -2,15 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Target, TrendingUp, UserRoundCheck, Users, Clock3, Trophy } from "lucide-react";
+
+import { hasPermission } from "@/lib/permissions";
 import { subscribeToBrokers, subscribeToWebsiteLeads } from "@/services/adminService";
-import type { BrokerRecord, WebsiteLeadRecord } from "@/types/admin";
+import type { BrokerRecord, UserRole, WebsiteLeadRecord } from "@/types/admin";
 
 const WON = new Set(["won", "contract"]);
 
-export default function ExecutiveDashboard({ currentBrokerId = "" }: { currentBrokerId?: string }) {
+export default function ExecutiveDashboard({
+  userRole,
+  currentBrokerId = "",
+}: {
+  userRole: UserRole;
+  currentBrokerId?: string;
+}) {
   const [leads, setLeads] = useState<WebsiteLeadRecord[]>([]);
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
   const [message, setMessage] = useState("");
+  const canViewBrokerRanking = hasPermission(userRole, "view_broker_ranking");
   useEffect(() => subscribeToWebsiteLeads(setLeads, (error) => setMessage(error.message), currentBrokerId || undefined), [currentBrokerId]);
   useEffect(() => subscribeToBrokers(setBrokers, (error) => setMessage(error.message)), []);
 
@@ -23,9 +32,11 @@ export default function ExecutiveDashboard({ currentBrokerId = "" }: { currentBr
     const won = leads.filter((lead) => WON.has(lead.stage)).length;
     const conversion = leads.length ? (won / leads.length) * 100 : 0;
     const overdue = leads.filter((lead) => lead.nextContactAt && new Date(lead.nextContactAt) < now && !WON.has(lead.stage) && lead.stage !== "lost").length;
-    const byBroker = brokers.map((broker) => ({ broker, total: leads.filter((lead) => lead.assignedTo === broker.id).length, won: leads.filter((lead) => lead.assignedTo === broker.id && WON.has(lead.stage)).length })).sort((a, b) => b.won - a.won || b.total - a.total);
+    const byBroker = canViewBrokerRanking
+      ? brokers.map((broker) => ({ broker, total: leads.filter((lead) => lead.assignedTo === broker.id && lead.stage !== "lost").length, won: leads.filter((lead) => lead.assignedTo === broker.id && WON.has(lead.stage)).length })).sort((a, b) => b.won - a.won || b.total - a.total)
+      : [];
     return { today, month, won, conversion, overdue, byBroker };
-  }, [leads, brokers]);
+  }, [leads, brokers, canViewBrokerRanking]);
 
   const stageData = useMemo(() => {
     const labels: Record<string, string> = { new: "Novos", contacted: "Contato", documents: "Documentos", credit_analysis: "Crédito", approved: "Aprovados", visit: "Visitas", proposal: "Propostas", reserved: "Reservas", contract: "Contratos", won: "Vendas", lost: "Perdidos" };
@@ -53,9 +64,9 @@ export default function ExecutiveDashboard({ currentBrokerId = "" }: { currentBr
       <Card title="Origem dos leads" subtitle="Campanhas e canais com maior volume">
         <div className="space-y-4">{sources.map(([source, value]) => <div key={source}><div className="mb-1 flex justify-between text-sm"><span className="truncate font-semibold text-slate-700">{source}</span><span className="font-bold">{value}</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-emerald-600" style={{ width: `${Math.max(5, value / maxSource * 100)}%` }}/></div></div>)}{sources.length === 0 && <Empty/>}</div>
       </Card>
-      <Card title="Ranking de corretores" subtitle="Ordenado por vendas e carteira">
+      {canViewBrokerRanking && <Card title="Ranking de corretores" subtitle="Ordenado por vendas e carteira">
         <div className="space-y-3">{stats.byBroker.slice(0, 8).map((item, index) => <div key={item.broker.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-blue-50 font-extrabold text-blue-950">{index + 1}</div><div className="min-w-0 flex-1"><p className="truncate font-bold text-slate-900">{item.broker.name}</p><p className="text-xs text-slate-500">{item.total} leads · {item.won} vendas</p></div>{index === 0 && <Trophy className="text-amber-500" size={20}/>}</div>)}{stats.byBroker.length === 0 && <Empty/>}</div>
-      </Card>
+      </Card>}
       <Card title="Alertas comerciais" subtitle="O que precisa de ação agora">
         <div className="space-y-3"><Alert value={leads.filter((lead) => !lead.assignedTo).length} label="leads sem responsável"/><Alert value={stats.overdue} label="retornos vencidos"/><Alert value={leads.filter((lead) => lead.stage === "new").length} label="leads ainda sem contato"/><Alert value={leads.filter((lead) => lead.stage === "documents").length} label="clientes aguardando documentos"/></div>
       </Card>

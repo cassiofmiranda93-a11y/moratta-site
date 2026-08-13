@@ -71,7 +71,7 @@ export default function AtlasOpportunitiesPanel({ currentBrokerId = "" }: { curr
       </article>)}
       {filtered.length === 0 && <div className="col-span-full rounded-2xl bg-white py-16 text-center text-slate-400">Nenhuma oportunidade encontrada com estes filtros.</div>}
     </div>
-    {selectedLead && <LeadDetailDrawer lead={selectedLead} onClose={() => setSelectedLead(null)}/>} 
+    {selectedLead && <LeadDetailDrawer key={selectedLead.id} lead={selectedLead} onClose={() => setSelectedLead(null)}/>} 
   </section>;
 }
 

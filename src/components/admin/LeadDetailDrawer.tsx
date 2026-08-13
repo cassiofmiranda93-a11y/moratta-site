@@ -19,14 +19,15 @@ export default function LeadDetailDrawer({ lead, canDelete = false, onDeleted, o
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [saleModal, setSaleModal] = useState(false);
-  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [whatsappMessage, setWhatsappMessage] = useState(
+    () => assessLead(lead).suggestedWhatsapp,
+  );
 
   useEffect(() => subscribeToLeadActivities(lead.id, setActivities, (error) => setMessage(error.message)), [lead.id]);
   useEffect(() => subscribeToLeadSales(lead.id, setSales, (error) => setMessage(error.message)), [lead.id]);
   useEffect(() => subscribeToBrokers(setBrokers, (error) => setMessage(error.message)), []);
 
   const assessment = useMemo(() => assessLead(lead), [lead]);
-  useEffect(() => setWhatsappMessage(assessment.suggestedWhatsapp), [assessment.suggestedWhatsapp]);
   const sale = useMemo(() => sales.find((item) => item.leadId === lead.id), [sales, lead.id]);
   const received = sale?.installments.reduce((sum, item) => sum + item.receivedAmount, 0) ?? 0;
   const predicted = sale?.installments.reduce((sum, item) => sum + item.amount, 0) ?? 0;

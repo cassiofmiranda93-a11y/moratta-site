@@ -35,6 +35,7 @@ import { formatCurrency } from "@/lib/catalog";
 import DevelopmentForm from "./DevelopmentForm";
 import PropertyForm from "./PropertyForm";
 import AdminLeadsPanel from "./AdminLeadsPanel";
+import LostLeadsPool from "./lost-leads-pool";
 import TeamPanel from "./TeamPanel";
 import ExecutiveDashboard from "./ExecutiveDashboard";
 import IntegrationsPanel from "./IntegrationsPanel";
@@ -48,7 +49,7 @@ import type { Development, PropertyUnit } from "@/types/project";
 import type { BrokerRecord, SecuritySettings, UserRole } from "@/types/admin";
 import { hasPermission, roleLabel } from "@/lib/permissions";
 
-type Tab = "overview" | "alerts" | "atlas" | "directorate" | "finance" | "catalog" | "developments" | "properties" | "leads" | "team" | "integrations" | "audit" | "security";
+type Tab = "overview" | "alerts" | "atlas" | "directorate" | "finance" | "catalog" | "developments" | "properties" | "leads" | "lost_pool" | "team" | "integrations" | "audit" | "security";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -77,7 +78,7 @@ export default function AdminDashboard() {
   }, [user]);
 
   const currentMember = useMemo(() => members.find((member) => member.id === access?.memberId || (member.email && member.email.toLowerCase() === user?.email?.toLowerCase())), [members, access?.memberId, user?.email]);
-  const userRole: UserRole = access?.role ?? currentMember?.role ?? "admin";
+  const userRole: UserRole = access?.role ?? currentMember?.role ?? (isBootstrapAdmin ? "admin" : "broker");
   const currentBrokerId = access?.memberId ?? currentMember?.id ?? "";
   const canManageTeam = hasPermission(userRole, "manage_team");
   const canViewFinance = hasPermission(userRole, "view_finance");
@@ -86,6 +87,7 @@ export default function AdminDashboard() {
   const canManageCatalog = hasPermission(userRole, "manage_catalog");
   const canViewAudit = hasPermission(userRole, "view_audit");
   const canManageSecurity = hasPermission(userRole, "manage_security");
+  const canViewLostPool = hasPermission(userRole, "view_lost_leads_pool");
 
   const metrics = useMemo(() => ({
     published: developments.filter((item) => item.status === "published" && item.active).length,
@@ -148,6 +150,7 @@ export default function AdminDashboard() {
           {canManageCatalog && <NavButton active={tab === "developments"} onClick={() => setTab("developments")} icon={<Building2 size={18} />} label="Empreendimentos" />}
           {canManageCatalog && <NavButton active={tab === "properties"} onClick={() => setTab("properties")} icon={<Home size={18} />} label="Imóveis e unidades" />}
           {userRole !== "finance" && <NavButton active={tab === "leads"} onClick={() => setTab("leads")} icon={<UserRoundCheck size={18} />} label="Clientes e leads" />}
+          {canViewLostPool && <NavButton active={tab === "lost_pool"} onClick={() => setTab("lost_pool")} icon={<Archive size={18} />} label="Bolsão de perdidos" />}
           {canManageTeam && <NavButton active={tab === "team"} onClick={() => setTab("team")} icon={<Users size={18} />} label="Equipe e acessos" />}
           {canManageIntegrations && <NavButton active={tab === "integrations"} onClick={() => setTab("integrations")} icon={<PlugZap size={18} />} label="Integrações" />}
           {canViewAudit && <NavButton active={tab === "audit"} onClick={() => setTab("audit")} icon={<FileClock size={18} />} label="Auditoria e backup" />}
@@ -160,10 +163,10 @@ export default function AdminDashboard() {
           {error && <div className="mb-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{error}</div>}
           {loading ? <Centered text="Carregando catálogo..." compact /> : (
             <>
-              {tab === "overview" && <ExecutiveDashboard currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "overview" && <ExecutiveDashboard userRole={userRole} currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
               {tab === "alerts" && <AlertsPanel userRole={userRole} currentBrokerId={currentBrokerId} />}
               {tab === "atlas" && userRole !== "finance" && <AtlasOpportunitiesPanel currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
-              {tab === "directorate" && canViewFinance && <DirectorateDashboard currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
+              {tab === "directorate" && canViewFinance && <DirectorateDashboard userRole={userRole} currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
               {tab === "finance" && canManageFinance && <SalesFinancePanel currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
               {tab === "audit" && canViewAudit && <AuditBackupPanel />}
               {tab === "security" && canManageSecurity && <SecurityAccessPanel />}
@@ -195,6 +198,8 @@ export default function AdminDashboard() {
               )}
 
               {tab === "leads" && userRole !== "finance" && <AdminLeadsPanel userRole={userRole} currentBrokerId={currentBrokerId} />}
+
+              {tab === "lost_pool" && canViewLostPool && <LostLeadsPool />}
 
               {tab === "team" && <TeamPanel currentUserRole={userRole} />}
 

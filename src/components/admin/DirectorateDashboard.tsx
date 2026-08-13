@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, CalendarClock, ReceiptText, Target, TrendingUp, Trophy, Users, WalletCards } from "lucide-react";
+
+import { hasPermission } from "@/lib/permissions";
 import { subscribeToBrokers, subscribeToSales, subscribeToWebsiteLeads } from "@/services/adminService";
-import type { BrokerRecord, SaleRecord, WebsiteLeadRecord } from "@/types/admin";
+import type { BrokerRecord, SaleRecord, UserRole, WebsiteLeadRecord } from "@/types/admin";
 
 function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -32,7 +34,13 @@ function isFutureWithin(value: string, days: number) {
   return date >= today && date <= limit;
 }
 
-export default function DirectorateDashboard({ currentBrokerId = "" }: { currentBrokerId?: string }) {
+export default function DirectorateDashboard({
+  userRole,
+  currentBrokerId = "",
+}: {
+  userRole: UserRole;
+  currentBrokerId?: string;
+}) {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [leads, setLeads] = useState<WebsiteLeadRecord[]>([]);
   const [brokers, setBrokers] = useState<BrokerRecord[]>([]);
@@ -40,6 +48,7 @@ export default function DirectorateDashboard({ currentBrokerId = "" }: { current
   const [brokerId, setBrokerId] = useState("");
   const [development, setDevelopment] = useState("");
   const [message, setMessage] = useState("");
+  const canViewBrokerRanking = hasPermission(userRole, "view_broker_ranking");
 
   useEffect(() => subscribeToSales(setSales, (error) => setMessage(error.message), currentBrokerId || undefined), [currentBrokerId]);
   useEffect(() => subscribeToWebsiteLeads(setLeads, (error) => setMessage(error.message), currentBrokerId || undefined), [currentBrokerId]);
@@ -61,11 +70,11 @@ export default function DirectorateDashboard({ currentBrokerId = "" }: { current
       return due && due < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !["received", "cancelled"].includes(item.status) && item.receivedAmount < item.amount;
     });
     const invoicePending = filteredSales.filter((sale) => sale.invoiceExpectedAt && !sale.invoiceIssuedAt);
-    const byBroker = brokers.map((broker) => {
+    const byBroker = canViewBrokerRanking ? brokers.map((broker) => {
       const brokerSales = filteredSales.filter((sale) => sale.brokerId === broker.id);
       const revenue = brokerSales.flatMap((sale) => sale.installments).reduce((sum, item) => sum + item.amount, 0);
       return { broker, count: brokerSales.length, revenue };
-    }).filter((item) => item.count > 0).sort((a, b) => b.revenue - a.revenue || b.count - a.count);
+    }).filter((item) => item.count > 0).sort((a, b) => b.revenue - a.revenue || b.count - a.count) : [];
     const byPayer = Object.entries(filteredSales.reduce<Record<string, number>>((acc, sale) => {
       const key = sale.payerName || "Pagador não informado";
       acc[key] = (acc[key] || 0) + sale.installments.reduce((sum, item) => sum + item.amount, 0);
@@ -75,7 +84,7 @@ export default function DirectorateDashboard({ currentBrokerId = "" }: { current
     const wonLeads = filteredLeads.filter((lead) => ["contract", "won"].includes(lead.stage)).length;
     const conversion = filteredLeads.length ? wonLeads / filteredLeads.length * 100 : 0;
     return { propertyValue, expected, received, pending, overdue, invoicePending, byBroker, byPayer, forecast, conversion };
-  }, [filteredSales, filteredLeads, brokers]);
+  }, [filteredSales, filteredLeads, brokers, canViewBrokerRanking]);
 
   return <section>
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -102,9 +111,9 @@ export default function DirectorateDashboard({ currentBrokerId = "" }: { current
       <Card title="Pendências financeiras" subtitle="Itens que precisam de acompanhamento">
         <div className="space-y-3"><Alert icon={<ReceiptText size={18}/>} label="Notas fiscais previstas e não emitidas" value={stats.invoicePending.length}/><Alert icon={<AlertTriangle size={18}/>} label="Parcelas vencidas ou incompletas" value={stats.overdue.length}/><Alert icon={<WalletCards size={18}/>} label="Total financeiro pendente" value={money(stats.pending)}/></div>
       </Card>
-      <Card title="Ranking por receita" subtitle="Corretores ordenados pela comissão prevista">
+      {canViewBrokerRanking && <Card title="Ranking por receita" subtitle="Corretores ordenados pela comissão prevista">
         <div className="space-y-3">{stats.byBroker.slice(0, 8).map((item, index) => <div key={item.broker.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3"><div className="grid h-9 w-9 place-items-center rounded-full bg-blue-50 font-extrabold text-blue-950">{index + 1}</div><div className="min-w-0 flex-1"><p className="truncate font-bold text-slate-900">{item.broker.name}</p><p className="text-xs text-slate-500">{item.count} venda{item.count === 1 ? "" : "s"} · {money(item.revenue)}</p></div>{index === 0 && <Trophy className="text-amber-500" size={20}/>}</div>)}{stats.byBroker.length === 0 && <Empty/>}</div>
-      </Card>
+      </Card>}
       <Card title="Receita por empresa pagadora" subtitle="Construtoras e parceiros responsáveis pelo pagamento">
         <div className="space-y-3">{stats.byPayer.slice(0, 8).map(([payer, value]) => <div key={payer} className="flex items-center justify-between rounded-xl bg-slate-50 p-4"><div className="flex min-w-0 items-center gap-3"><Users className="shrink-0 text-blue-800" size={18}/><span className="truncate font-semibold text-slate-700">{payer}</span></div><span className="font-extrabold text-slate-900">{money(value)}</span></div>)}{stats.byPayer.length === 0 && <Empty/>}</div>
       </Card>

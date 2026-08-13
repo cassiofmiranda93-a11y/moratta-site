@@ -41,6 +41,12 @@ service cloud.firestore {
         || (hasActiveAccess(organizationId) && role(organizationId) in roles)
       );
     }
+    function hasVerifiedRole(organizationId, roles) {
+      return signedIn() && (
+        bootstrapAdmin()
+        || (hasActiveAccess(organizationId) && role(organizationId) in roles)
+      );
+    }
 
     function validPublicLead() {
       return request.resource.data.keys().hasAll(['name', 'phone', 'source', 'stage', 'status', 'createdAt'])
@@ -89,44 +95,43 @@ service cloud.firestore {
 
     match /organizations/{organizationId}/leads/{leadId} {
       allow create: if validPublicLead()
-        || hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId)
-            || request.resource.data.assignedTo in ['', memberId(organizationId)]));
-      allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId) || resource.data.assignedTo == memberId(organizationId)));
-      allow update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId)
-            || (resource.data.assignedTo == memberId(organizationId)
-              && request.resource.data.assignedTo == resource.data.assignedTo)));
-      allow delete: if hasRole(organizationId, ['admin']);
+        || hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && request.resource.data.stage != 'lost'
+          && request.resource.data.get('assignedTo', '') in ['', memberId(organizationId)]);
+      allow read: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && resource.data.stage != 'lost'
+          && resource.data.assignedTo == memberId(organizationId));
+      allow update: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && resource.data.stage != 'lost'
+          && resource.data.assignedTo == memberId(organizationId)
+          && request.resource.data.assignedTo == resource.data.assignedTo);
+      allow delete: if hasVerifiedRole(organizationId, ['admin']);
 
       match /activities/{activityId} {
-        allow read, create, update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-          || (hasRole(organizationId, ['broker'])
-            && (!strictAccess(organizationId)
-              || get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(leadId)).data.assignedTo == memberId(organizationId)));
-        allow delete: if hasRole(organizationId, ['admin', 'manager']);
+        allow read, create, update: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+          || (hasVerifiedRole(organizationId, ['broker'])
+            && get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(leadId)).data.stage != 'lost'
+            && get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(leadId)).data.assignedTo == memberId(organizationId));
+        allow delete: if hasVerifiedRole(organizationId, ['admin', 'manager']);
       }
     }
 
     match /organizations/{organizationId}/sales/{saleId} {
-      allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId)
-            || resource.data.brokerId == memberId(organizationId)
+      allow read: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && (resource.data.brokerId == memberId(organizationId)
             || get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(resource.data.leadId)).data.assignedTo == memberId(organizationId)));
-      allow create: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId) || request.resource.data.brokerId == memberId(organizationId)));
-      allow update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
-        || (hasRole(organizationId, ['broker'])
-          && (!strictAccess(organizationId)
-            || (resource.data.brokerId == memberId(organizationId)
-              && request.resource.data.brokerId == resource.data.brokerId)));
-      allow delete: if hasRole(organizationId, ['admin', 'manager']);
+      allow create: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && request.resource.data.brokerId == memberId(organizationId));
+      allow update: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && resource.data.brokerId == memberId(organizationId)
+          && request.resource.data.brokerId == resource.data.brokerId);
+      allow delete: if hasVerifiedRole(organizationId, ['admin', 'manager']);
     }
 
     match /organizations/{organizationId}/members/{memberIdValue} {
@@ -162,8 +167,17 @@ service cloud.firestore {
     }
 
     match /organizations/{organizationId}/alertCompletions/{completionId} {
-      allow read, create, update: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
-      allow delete: if hasRole(organizationId, ['admin', 'manager']);
+      allow read: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && resource.data.brokerId == memberId(organizationId));
+      allow create: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && request.resource.data.brokerId == memberId(organizationId));
+      allow update: if hasVerifiedRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasVerifiedRole(organizationId, ['broker'])
+          && resource.data.brokerId == memberId(organizationId)
+          && request.resource.data.brokerId == resource.data.brokerId);
+      allow delete: if hasVerifiedRole(organizationId, ['admin', 'manager']);
     }
 
     match /organizations/{organizationId}/whatsappMessages/{messageId} {

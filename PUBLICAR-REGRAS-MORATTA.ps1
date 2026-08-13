@@ -9,6 +9,6 @@ if (-not (Get-Command firebase -ErrorAction SilentlyContinue)) {
 
 Write-Host "Será aberta a autenticação do Firebase." -ForegroundColor Cyan
 firebase login
-firebase deploy --only firestore:rules,storage --project $projectId
+firebase deploy --only firestore:rules,firestore:indexes,storage --project $projectId
 
 Write-Host "Regras publicadas no projeto $projectId." -ForegroundColor Green

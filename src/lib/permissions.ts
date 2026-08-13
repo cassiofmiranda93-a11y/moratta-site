@@ -2,6 +2,8 @@ import type { UserRole } from "@/types/admin";
 
 export type Permission =
   | "view_dashboard"
+  | "view_broker_ranking"
+  | "view_lost_leads_pool"
   | "view_catalog"
   | "manage_catalog"
   | "view_leads"
@@ -16,7 +18,7 @@ export type Permission =
 
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   admin: new Set([
-    "view_dashboard", "view_catalog", "manage_catalog", "view_leads", "manage_all_leads",
+    "view_dashboard", "view_broker_ranking", "view_lost_leads_pool", "view_catalog", "manage_catalog", "view_leads", "manage_all_leads",
     "import_leads", "view_finance", "manage_finance", "manage_team", "manage_integrations",
     "view_audit", "manage_security",
   ]),

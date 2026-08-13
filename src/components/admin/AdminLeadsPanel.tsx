@@ -26,6 +26,10 @@ import {
   updateLeadStage,
 } from "@/services/adminService";
 import { toTitleCase } from "@/lib/leadText";
+import {
+  LEAD_DISTRIBUTION_BATCH_SIZES,
+  selectUnassignedLeadIds,
+} from "@/lib/lead-batch";
 import type { BrokerRecord, UserRole, WebsiteLeadRecord } from "@/types/admin";
 import LeadDetailDrawer from "./LeadDetailDrawer";
 import LeadImportModal from "./LeadImportModal";
@@ -67,40 +71,44 @@ export default function AdminLeadsPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [manualModal, setManualModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
+  const [distributionBatchSize, setDistributionBatchSize] = useState(20);
 
   useEffect(
     () =>
       subscribeToWebsiteLeads(
-        setLeads,
+        (nextLeads) => {
+          setLeads(nextLeads);
+          setSelectedLead((current) => {
+            if (!current) return null;
+            return nextLeads.find((lead) => lead.id === current.id && lead.stage !== "lost") ?? null;
+          });
+          setSelectedIds((current) => {
+            const validIds = new Set(
+              nextLeads
+                .filter(
+                  (lead) =>
+                    lead.stage !== "lost" && (userRole === "admin" || !lead.assignedTo),
+                )
+                .map((lead) => lead.id),
+            );
+            return new Set([...current].filter((id) => validIds.has(id)));
+          });
+        },
         (error) => setMessage(error.message),
         userRole === "broker" ? currentBrokerId : undefined,
       ),
     [userRole, currentBrokerId],
   );
   useEffect(() => subscribeToBrokers(setBrokers, (error) => setMessage(error.message)), []);
-  useEffect(() => {
-    if (userRole === "broker" && currentBrokerId) setBrokerFilter(currentBrokerId);
-  }, [userRole, currentBrokerId]);
-  useEffect(() => {
-    setSelectedLead((current) => {
-      if (!current) return null;
-      return leads.find((lead) => lead.id === current.id) ?? null;
-    });
-    setSelectedIds((current) => {
-      const validIds = new Set(
-        leads
-          .filter((lead) => userRole === "admin" || !lead.assignedTo)
-          .map((lead) => lead.id),
-      );
-      return new Set([...current].filter((id) => validIds.has(id)));
-    });
-  }, [leads, userRole]);
+  const effectiveBrokerFilter = userRole === "broker" ? currentBrokerId : brokerFilter;
 
   const visibleLeads = useMemo(
-    () =>
-      userRole === "broker" && currentBrokerId
-        ? leads.filter((lead) => lead.assignedTo === currentBrokerId)
-        : leads,
+    () => {
+      const activeLeads = leads.filter((lead) => lead.stage !== "lost");
+      return userRole === "broker" && currentBrokerId
+        ? activeLeads.filter((lead) => lead.assignedTo === currentBrokerId)
+        : activeLeads;
+    },
     [leads, userRole, currentBrokerId],
   );
 
@@ -119,11 +127,11 @@ export default function AdminLeadsPanel({
           .toLocaleLowerCase("pt-BR")
           .includes(term);
       const matchesStage = !stageFilter || lead.stage === stageFilter;
-      const matchesBroker = !brokerFilter || lead.assignedTo === brokerFilter;
+      const matchesBroker = !effectiveBrokerFilter || lead.assignedTo === effectiveBrokerFilter;
       const matchesSource = !sourceFilter || lead.source === sourceFilter;
       return matchesQuery && matchesStage && matchesBroker && matchesSource;
     });
-  }, [visibleLeads, query, stageFilter, brokerFilter, sourceFilter]);
+  }, [visibleLeads, query, stageFilter, effectiveBrokerFilter, sourceFilter]);
 
   const canManage = userRole === "admin" || userRole === "manager";
   const selectableIds = useMemo(
@@ -140,6 +148,10 @@ export default function AdminLeadsPanel({
         .filter((lead) => !lead.assignedTo && selectedIds.has(lead.id))
         .map((lead) => lead.id),
     [filtered, selectedIds],
+  );
+  const batchLeadIds = useMemo(
+    () => selectUnassignedLeadIds(filtered, distributionBatchSize),
+    [filtered, distributionBatchSize],
   );
   const allSelectableSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
@@ -179,6 +191,28 @@ export default function AdminLeadsPanel({
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível distribuir os leads.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runBatchDistribution() {
+    if (batchLeadIds.length === 0) {
+      setMessage("Não há leads sem responsável no filtro atual.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const count = await distributeUnassignedLeads(batchLeadIds);
+      setMessage(
+        `${count} lead${count === 1 ? "" : "s"} do filtro atual distribuído${
+          count === 1 ? "" : "s"
+        } pela roleta.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível distribuir o lote.");
     } finally {
       setBusy(false);
     }
@@ -395,7 +429,9 @@ export default function AdminLeadsPanel({
             value={stageFilter}
             onChange={setStageFilter}
             label="Todas as etapas"
-            options={STAGES.map(([value, label]) => [value, label] as [string, string])}
+            options={STAGES.filter(([value]) => value !== "lost").map(
+              ([value, label]) => [value, label] as [string, string],
+            )}
           />
           {userRole !== "broker" && (
             <Filter
@@ -411,6 +447,32 @@ export default function AdminLeadsPanel({
             label="Todas as origens"
             options={sources.map((source) => [source, sourceLabel(source)] as [string, string])}
           />
+          {canManage && (
+            <div className="flex h-12 w-full overflow-hidden rounded-xl border border-emerald-700 bg-white sm:w-auto">
+              <select
+                value={distributionBatchSize}
+                onChange={(event) => setDistributionBatchSize(Number(event.target.value))}
+                aria-label="Quantidade de leads para distribuir"
+                className="border-r border-emerald-200 bg-white px-3 text-sm font-bold text-emerald-800 outline-none"
+              >
+                {LEAD_DISTRIBUTION_BATCH_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size} leads
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => void runBatchDistribution()}
+                disabled={busy || batchLeadIds.length === 0}
+                title="Distribui os primeiros leads sem responsável do filtro atual"
+                className="flex items-center gap-2 bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? <RefreshCw className="animate-spin" size={17} /> : <WandSparkles size={17} />}
+                Distribuir lote ({batchLeadIds.length})
+              </button>
+            </div>
+          )}
           <button
             onClick={clearFilters}
             className="flex h-12 items-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-600"
@@ -617,6 +679,7 @@ export default function AdminLeadsPanel({
 
       {selectedLead && (
         <LeadDetailDrawer
+          key={selectedLead.id}
           lead={selectedLead}
           canDelete={userRole === "admin"}
           onDeleted={(name) => {

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCrmAlerts, crmAlertOccurrenceId, filterOpenCrmAlerts } from "../src/lib/crmAlerts.ts";
+import {
+  buildCrmAlerts,
+  crmAlertOccurrenceId,
+  filterCrmAlertsByBroker,
+  filterOpenCrmAlerts,
+} from "../src/lib/crmAlerts.ts";
 import { hasPermission } from "../src/lib/permissions.ts";
 import type { SaleRecord, WebsiteLeadRecord } from "../src/types/admin.ts";
 
@@ -31,11 +36,41 @@ test("corretor não recebe permissões administrativas", () => {
   assert.equal(hasPermission("admin", "manage_security"), true);
 });
 
+test("somente administrador pode visualizar rankings de corretores", () => {
+  assert.equal(hasPermission("admin", "view_broker_ranking"), true);
+  assert.equal(hasPermission("manager", "view_broker_ranking"), false);
+  assert.equal(hasPermission("broker", "view_broker_ranking"), false);
+  assert.equal(hasPermission("finance", "view_broker_ranking"), false);
+});
+
+test("somente administrador pode acessar o bolsao de leads perdidos", () => {
+  assert.equal(hasPermission("admin", "view_lost_leads_pool"), true);
+  assert.equal(hasPermission("manager", "view_lost_leads_pool"), false);
+  assert.equal(hasPermission("broker", "view_lost_leads_pool"), false);
+  assert.equal(hasPermission("finance", "view_lost_leads_pool"), false);
+});
+
 test("gera alertas comerciais e financeiros vencidos", () => {
   const alerts = buildCrmAlerts([lead({ nextContactAt: "2026-07-27T10:00:00.000Z" })], [sale()], new Date("2026-07-28T12:00:00.000Z"));
   assert.ok(alerts.some((item) => item.type === "lead_return"));
   assert.ok(alerts.some((item) => item.type === "invoice_due"));
   assert.ok(alerts.some((item) => item.type === "payment_overdue"));
+  assert.ok(alerts.every((item) => item.brokerId === "broker-1"));
+});
+
+test("filtra alertas pelo corretor e mostra pendências sem responsável", () => {
+  const alerts = buildCrmAlerts(
+    [
+      lead({ id: "lead-1", assignedTo: "broker-1", nextContactAt: "2026-07-27T10:00:00.000Z" }),
+      lead({ id: "lead-2", assignedTo: "", lastContactAt: "2026-07-10T10:00:00.000Z" }),
+    ],
+    [],
+    new Date("2026-07-28T12:00:00.000Z"),
+  );
+
+  assert.equal(filterCrmAlertsByBroker(alerts, "broker-1").length, 1);
+  assert.equal(filterCrmAlertsByBroker(alerts, "__unassigned__").length, 1);
+  assert.equal(filterCrmAlertsByBroker(alerts, "").length, 2);
 });
 
 test("alerta finalizado some apenas para a mesma ocorrência", () => {

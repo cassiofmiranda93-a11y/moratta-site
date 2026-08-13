@@ -22,6 +22,15 @@ export function filterOpenCrmAlerts(alerts: CrmAlert[], completedOccurrences: It
   return alerts.filter((alert) => !completed.has(crmAlertOccurrenceId(alert)));
 }
 
+export function filterCrmAlertsByBroker(
+  alerts: CrmAlert[],
+  brokerId: string,
+) {
+  if (!brokerId) return alerts;
+  if (brokerId === "__unassigned__") return alerts.filter((alert) => !alert.brokerId);
+  return alerts.filter((alert) => alert.brokerId === brokerId);
+}
+
 export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], now = new Date()): CrmAlert[] {
   const current = now.getTime();
   const alerts: CrmAlert[] = [];
@@ -38,6 +47,7 @@ export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], 
         description: `O retorno estava previsto para ${new Date(nextContact).toLocaleString("pt-BR")}.`,
         entityType: "lead",
         entityId: lead.id,
+        brokerId: lead.assignedTo,
         dueAt: new Date(nextContact).toISOString(),
       });
       continue;
@@ -55,6 +65,7 @@ export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], 
           description: `${inactivity} dias sem atualização ou contato registrado.`,
           entityType: "lead",
           entityId: lead.id,
+          brokerId: lead.assignedTo,
           dueAt: new Date(reference).toISOString(),
         });
       }
@@ -74,6 +85,7 @@ export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], 
           description: days < 0 ? `A emissão está atrasada há ${Math.abs(days)} dia(s).` : `Emissão prevista em ${days} dia(s).`,
           entityType: "sale",
           entityId: sale.id,
+          brokerId: sale.brokerId,
           dueAt: new Date(invoiceExpected).toISOString(),
         });
       }
@@ -93,6 +105,7 @@ export function buildCrmAlerts(leads: WebsiteLeadRecord[], sales: SaleRecord[], 
           description: `${installment.description} · R$ ${installment.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
           entityType: "sale",
           entityId: sale.id,
+          brokerId: sale.brokerId,
           dueAt: new Date(expected).toISOString(),
         });
       }

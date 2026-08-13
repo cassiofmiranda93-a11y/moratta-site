@@ -24,6 +24,7 @@ import { normalizeLeadTextFields } from "@/lib/leadText";
 import type { AuditLogRecord, BrokerInput, BrokerRecord, CrmAlert, CrmBackupData, CrmImportPreview, CrmImportResult, DistributionSettings, IntegrationSettings, LeadActivityRecord, OrganizationAccessRecord, SaleInput, SaleInstallmentRecord, SaleRecord, SecuritySettings, WebsiteLeadInput, WebsiteLeadRecord } from "@/types/admin";
 
 const base = ["organizations", COMPANY.organizationId] as const;
+const DISTRIBUTION_TRANSACTION_LEAD_LIMIT = 200;
 
 function requireFirestore() {
   if (!firestore) throw new Error(firebaseConfigurationError ?? "Firestore indisponível.");
@@ -58,6 +59,7 @@ function toLead(data: DocumentData, id: string): WebsiteLeadRecord {
     nextContactAt: toIsoString(data.nextContactAt),
     lastContactAt: toIsoString(data.lastContactAt),
     importedAt: toIsoString(data.importedAt),
+    lostAt: toIsoString(data.lostAt),
     createdAt: toIsoString(data.createdAt),
     updatedAt: toIsoString(data.updatedAt),
   };
@@ -124,11 +126,33 @@ function toBroker(data: DocumentData, id: string): BrokerRecord {
 export function subscribeToWebsiteLeads(onData: (items: WebsiteLeadRecord[]) => void, onError: (error: Error) => void, assignedTo?: string) {
   if (!firestore) return () => undefined;
   const source = assignedTo
-    ? query(collection(firestore, ...base, "leads"), where("assignedTo", "==", assignedTo))
+    ? query(
+        collection(firestore, ...base, "leads"),
+        where("assignedTo", "==", assignedTo),
+        where("stage", "!=", "lost"),
+      )
     : collection(firestore, ...base, "leads");
   return onSnapshot(
     source,
     (snapshot) => onData(snapshot.docs.map((item) => toLead(item.data(), item.id)).sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))),
+    onError,
+  );
+}
+
+export function subscribeToLostLeads(
+  onData: (items: WebsiteLeadRecord[]) => void,
+  onError: (error: Error) => void,
+) {
+  if (!firestore) return () => undefined;
+  const source = query(collection(firestore, ...base, "leads"), where("stage", "==", "lost"));
+  return onSnapshot(
+    source,
+    (snapshot) =>
+      onData(
+        snapshot.docs
+          .map((item) => toLead(item.data(), item.id))
+          .sort((a, b) => (b.lostAt ?? b.updatedAt ?? "").localeCompare(a.lostAt ?? a.updatedAt ?? "")),
+      ),
     onError,
   );
 }
@@ -306,19 +330,52 @@ export async function assignLead(leadId: string, brokerId: string) {
 
 export async function updateLeadStage(leadId: string, stage: string) {
   const db = requireFirestore();
-  await updateDoc(doc(db, ...base, "leads", leadId), {
+  const batch = writeBatch(db);
+  const leadRef = doc(db, ...base, "leads", leadId);
+  const activityRef = doc(collection(db, ...base, "leads", leadId, "activities"));
+  batch.update(leadRef, {
     stage,
+    lostAt: stage === "lost" ? serverTimestamp() : null,
     updatedAt: serverTimestamp(),
   });
-  await addDoc(collection(db, ...base, "leads", leadId, "activities"), {
+  batch.set(activityRef, {
     type: "stage",
-    title: "Etapa atualizada",
+    title: stage === "lost" ? "Lead enviado ao bolsão de perdidos" : "Etapa atualizada",
     description: stage,
     dueAt: null,
     completed: true,
     createdAt: serverTimestamp(),
   });
+  await batch.commit();
   await writeAudit("Etapa do cliente alterada", "lead", leadId, "Cliente", { stage });
+}
+
+export async function restoreLostLead(leadId: string) {
+  const db = requireFirestore();
+  const batch = writeBatch(db);
+  const leadRef = doc(db, ...base, "leads", leadId);
+  const activityRef = doc(collection(db, ...base, "leads", leadId, "activities"));
+  batch.update(leadRef, {
+    stage: "new",
+    assignedTo: "",
+    distributionMode: "unassigned",
+    lostAt: null,
+    nextContactAt: null,
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(activityRef, {
+    type: "stage",
+    title: "Lead recuperado do bolsão",
+    description: "O lead voltou ao funil como novo e sem corretor responsável.",
+    dueAt: null,
+    completed: true,
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
+  await writeAudit("Lead recuperado do bolsão", "lead", leadId, "Cliente", {
+    stage: "new",
+    assignedTo: "",
+  });
 }
 
 export async function saveBroker(input: BrokerInput, id?: string) {
@@ -378,82 +435,163 @@ export async function toggleBroker(id: string, active: boolean) {
   await writeAudit(active ? "Acesso ativado" : "Acesso desativado", "member", id, String(member.data()?.name ?? "Integrante"), { active });
 }
 
-export async function distributeLeadRoundRobin(leadId: string) {
+async function distributeLeadBatch(leadIds: string[]) {
   const db = requireFirestore();
   const [brokersSnapshot, crmSettings, allLeads] = await Promise.all([
     getDocs(collection(db, ...base, "members")),
-    getDocs(collection(db, ...base, "settings")),
+    getDoc(doc(db, ...base, "settings", "crm")),
     getDocs(collection(db, ...base, "leads")),
   ]);
-  const crmDoc = crmSettings.docs.find((item) => item.id === "crm")?.data();
-  const distribution: DistributionSettings = { ...defaultDistribution, ...(crmDoc?.distribution ?? {}) };
-  const leadSnapshot = allLeads.docs.find((item) => item.id === leadId);
-  if (!leadSnapshot) throw new Error("Lead não encontrado.");
-  const leadData = leadSnapshot.data();
-  let activeBrokers = brokersSnapshot.docs.filter((item) => item.data().role === "broker" && item.data().active !== false);
-  if (distribution.respectAvailability) activeBrokers = activeBrokers.filter((item) => item.data().available !== false);
-  if (distribution.useCityMatching && leadData.city) {
-    const cityMatches = activeBrokers.filter((item) => Array.isArray(item.data().cities) && item.data().cities.map(String).some((city: string) => city.toLowerCase() === String(leadData.city).toLowerCase()));
-    if (cityMatches.length) activeBrokers = cityMatches;
+  const distribution: DistributionSettings = {
+    ...defaultDistribution,
+    ...(crmSettings.data()?.distribution ?? {}),
+  };
+  const brokers = brokersSnapshot.docs
+    .filter((item) => item.data().role === "broker" && item.data().active !== false)
+    .filter((item) => !distribution.respectAvailability || item.data().available !== false)
+    .map((item) => ({
+      id: item.id,
+      name: String(item.data().name ?? ""),
+      cities: Array.isArray(item.data().cities)
+        ? item.data().cities.map((value: unknown) => String(value))
+        : [],
+      specialties: Array.isArray(item.data().specialties)
+        ? item.data().specialties.map((value: unknown) => String(value))
+        : [],
+      dailyLeadLimit: Number(item.data().dailyLeadLimit ?? 20),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (brokers.length === 0) {
+    throw new Error("Nenhum corretor disponível atende às regras atuais de distribuição.");
   }
-  if (distribution.useSpecialtyMatching && leadData.propertyInterest) {
-    const specialtyMatches = activeBrokers.filter((item) => Array.isArray(item.data().specialties) && item.data().specialties.map(String).some((value: string) => String(leadData.propertyInterest).toLowerCase().includes(value.toLowerCase())));
-    if (specialtyMatches.length) activeBrokers = specialtyMatches;
-  }
-  if (distribution.respectDailyLimit) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    activeBrokers = activeBrokers.filter((broker) => {
-      const limit = Number(broker.data().dailyLeadLimit ?? 20);
-      const count = allLeads.docs.filter((lead) => String(lead.data().assignedTo ?? "") === broker.id && toIsoString(lead.data().distributedAt) && new Date(toIsoString(lead.data().distributedAt) as string) >= today).length;
-      return limit <= 0 || count < limit;
-    });
-  }
-  activeBrokers.sort((a, b) => String(a.data().name ?? "").localeCompare(String(b.data().name ?? "")));
-  if (activeBrokers.length === 0) throw new Error("Nenhum corretor disponível atende às regras atuais de distribuição.");
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const activeLeadCounts = new Map(brokers.map((broker) => [broker.id, 0]));
+  const dailyLeadCounts = new Map(brokers.map((broker) => [broker.id, 0]));
+  allLeads.docs.forEach((lead) => {
+    const data = lead.data();
+    const brokerId = String(data.assignedTo ?? "");
+    if (!activeLeadCounts.has(brokerId)) return;
+    if (!["won", "lost"].includes(String(data.stage ?? "new"))) {
+      activeLeadCounts.set(brokerId, (activeLeadCounts.get(brokerId) ?? 0) + 1);
+    }
+    const distributedAt = toIsoString(data.distributedAt);
+    if (distributedAt && new Date(distributedAt) >= today) {
+      dailyLeadCounts.set(brokerId, (dailyLeadCounts.get(brokerId) ?? 0) + 1);
+    }
+  });
 
   const settingsRef = doc(db, ...base, "settings", "leadDistribution");
-  const leadRef = doc(db, ...base, "leads", leadId);
+  const result = await runTransaction(db, async (transaction) => {
+    const [settings, ...leadSnapshots] = await Promise.all([
+      transaction.get(settingsRef),
+      ...leadIds.map((leadId) => transaction.get(doc(db, ...base, "leads", leadId))),
+    ]);
+    const workingActiveLeadCounts = new Map(activeLeadCounts);
+    const workingDailyLeadCounts = new Map(dailyLeadCounts);
+    let lastBrokerId = settings.exists() ? String(settings.data().lastBrokerId ?? "") : "";
+    let distributed = 0;
 
-  return runTransaction(db, async (transaction) => {
-    const [settings, lead] = await Promise.all([transaction.get(settingsRef), transaction.get(leadRef)]);
-    if (!lead.exists()) throw new Error("Lead não encontrado.");
-    if (String(lead.data().assignedTo ?? "")) return String(lead.data().assignedTo);
+    for (const lead of leadSnapshots) {
+      if (!lead.exists()) continue;
+      const leadData = lead.data();
+      if (String(leadData.assignedTo ?? "") || String(leadData.stage ?? "new") === "lost") {
+        continue;
+      }
 
-    let nextBroker = activeBrokers[0];
-    if (distribution.mode === "balanced") {
-      nextBroker = [...activeBrokers].sort((a, b) => {
-        const totalA = allLeads.docs.filter((item) => String(item.data().assignedTo ?? "") === a.id && !["won", "lost"].includes(String(item.data().stage ?? "new"))).length;
-        const totalB = allLeads.docs.filter((item) => String(item.data().assignedTo ?? "") === b.id && !["won", "lost"].includes(String(item.data().stage ?? "new"))).length;
-        return totalA - totalB;
-      })[0];
-    } else {
-      const lastBrokerId = settings.exists() ? String(settings.data().lastBrokerId ?? "") : "";
-      const lastIndex = activeBrokers.findIndex((item) => item.id === lastBrokerId);
-      nextBroker = activeBrokers[(lastIndex + 1) % activeBrokers.length];
+      let candidates = brokers.filter((broker) => {
+        if (!distribution.respectDailyLimit || broker.dailyLeadLimit <= 0) return true;
+        return (workingDailyLeadCounts.get(broker.id) ?? 0) < broker.dailyLeadLimit;
+      });
+
+      if (distribution.useCityMatching && leadData.city) {
+        const city = String(leadData.city).toLocaleLowerCase("pt-BR");
+        const matches = candidates.filter((broker) =>
+          broker.cities.some((value: string) => value.toLocaleLowerCase("pt-BR") === city),
+        );
+        if (matches.length > 0) candidates = matches;
+      }
+      if (distribution.useSpecialtyMatching && leadData.propertyInterest) {
+        const interest = String(leadData.propertyInterest).toLocaleLowerCase("pt-BR");
+        const matches = candidates.filter((broker) =>
+          broker.specialties.some((value: string) =>
+            interest.includes(value.toLocaleLowerCase("pt-BR")),
+          ),
+        );
+        if (matches.length > 0) candidates = matches;
+      }
+      if (candidates.length === 0) break;
+
+      const nextBroker = distribution.mode === "balanced"
+        ? [...candidates].sort(
+            (a, b) =>
+              (workingActiveLeadCounts.get(a.id) ?? 0) - (workingActiveLeadCounts.get(b.id) ?? 0)
+              || a.name.localeCompare(b.name),
+          )[0]
+        : candidates[(candidates.findIndex((broker) => broker.id === lastBrokerId) + 1) % candidates.length];
+
+      transaction.update(lead.ref, {
+        assignedTo: nextBroker.id,
+        distributionMode: distribution.mode,
+        distributedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      workingActiveLeadCounts.set(
+        nextBroker.id,
+        (workingActiveLeadCounts.get(nextBroker.id) ?? 0) + 1,
+      );
+      workingDailyLeadCounts.set(
+        nextBroker.id,
+        (workingDailyLeadCounts.get(nextBroker.id) ?? 0) + 1,
+      );
+      lastBrokerId = nextBroker.id;
+      distributed += 1;
     }
 
-    transaction.update(leadRef, {
-      assignedTo: nextBroker.id,
-      distributionMode: "round_robin",
-      distributedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    transaction.set(settingsRef, {
-      lastBrokerId: nextBroker.id,
-      lastDistributedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    if (distributed > 0) {
+      transaction.set(settingsRef, {
+        lastBrokerId,
+        lastDistributedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
 
-    return nextBroker.id;
+    return { distributed, lastBrokerId };
   });
+
+  return result;
+}
+
+export async function distributeLeadRoundRobin(leadId: string) {
+  const result = await distributeLeadBatch([leadId]);
+  if (result.distributed !== 1 || !result.lastBrokerId) {
+    throw new Error("O lead não pôde ser distribuído.");
+  }
+  return result.lastBrokerId;
 }
 
 export async function distributeUnassignedLeads(leadIds: string[]) {
+  const uniqueLeadIds = Array.from(new Set(leadIds));
+  if (uniqueLeadIds.length === 0) return 0;
   let distributed = 0;
-  for (const leadId of leadIds) {
-    await distributeLeadRoundRobin(leadId);
-    distributed += 1;
+  for (let index = 0; index < uniqueLeadIds.length; index += DISTRIBUTION_TRANSACTION_LEAD_LIMIT) {
+    const chunk = uniqueLeadIds.slice(index, index + DISTRIBUTION_TRANSACTION_LEAD_LIMIT);
+    const result = await distributeLeadBatch(chunk);
+    distributed += result.distributed;
+    if (result.distributed < chunk.length) break;
   }
+  if (distributed === 0 && uniqueLeadIds.length > 0) {
+    throw new Error("Nenhum corretor disponível atende às regras atuais de distribuição.");
+  }
+  await writeAudit(
+    "Leads distribuídos em lote",
+    "lead",
+    uniqueLeadIds[0] ?? "batch",
+    `${distributed} lead${distributed === 1 ? "" : "s"}`,
+    { requested: uniqueLeadIds.length, distributed },
+  );
   return distributed;
 }
 
@@ -590,36 +728,73 @@ export function subscribeToSales(onData: (items: SaleRecord[]) => void, onError:
 export function subscribeToCompletedCrmAlerts(
   onData: (occurrenceIds: string[]) => void,
   onError: (error: Error) => void,
+  brokerId?: string,
 ) {
   if (!firestore) return () => undefined;
+  const source = brokerId
+    ? query(collection(firestore, ...base, "alertCompletions"), where("brokerId", "==", brokerId))
+    : collection(firestore, ...base, "alertCompletions");
   return onSnapshot(
-    collection(firestore, ...base, "alertCompletions"),
+    source,
     (snapshot) => onData(snapshot.docs.map((item) => item.id)),
     onError,
   );
 }
 
 export async function completeCrmAlert(alert: CrmAlert) {
-  const db = requireFirestore();
-  const occurrenceId = crmAlertOccurrenceId(alert);
-  const actor = currentActor();
-  await setDoc(doc(db, ...base, "alertCompletions", occurrenceId), {
-    alertId: alert.id,
-    alertType: alert.type,
-    entityType: alert.entityType,
-    entityId: alert.entityId,
-    title: alert.title,
-    dueAt: alert.dueAt,
-    completedByUid: actor.actorUid,
-    completedByEmail: actor.actorEmail,
-    completedAt: serverTimestamp(),
-  });
-  await writeAudit("Alerta finalizado", alert.entityType, alert.entityId, alert.title, {
-    alertId: alert.id,
-    occurrenceId,
-    dueAt: alert.dueAt,
-  });
+  const [occurrenceId] = await completeCrmAlerts([alert]);
   return occurrenceId;
+}
+
+export async function completeCrmAlerts(alerts: CrmAlert[]) {
+  const db = requireFirestore();
+  const uniqueAlerts = Array.from(
+    new Map(alerts.map((alert) => [crmAlertOccurrenceId(alert), alert])).values(),
+  );
+
+  if (uniqueAlerts.length === 0) return [];
+
+  const actor = currentActor();
+  const completionIds: string[] = [];
+
+  for (let start = 0; start < uniqueAlerts.length; start += 400) {
+    const batch = writeBatch(db);
+    const chunk = uniqueAlerts.slice(start, start + 400);
+
+    for (const alert of chunk) {
+      const occurrenceId = crmAlertOccurrenceId(alert);
+      completionIds.push(occurrenceId);
+      batch.set(doc(db, ...base, "alertCompletions", occurrenceId), {
+        alertId: alert.id,
+        alertType: alert.type,
+        entityType: alert.entityType,
+        entityId: alert.entityId,
+        brokerId: alert.brokerId,
+        title: alert.title,
+        dueAt: alert.dueAt,
+        completedByUid: actor.actorUid,
+        completedByEmail: actor.actorEmail,
+        completedAt: serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  }
+
+  const firstAlert = uniqueAlerts[0];
+  await writeAudit(
+    uniqueAlerts.length === 1 ? "Alerta finalizado" : "Alertas finalizados em lote",
+    firstAlert.entityType,
+    firstAlert.entityId,
+    uniqueAlerts.length === 1 ? firstAlert.title : `${uniqueAlerts.length} alertas`,
+    {
+      alertId: uniqueAlerts.length === 1 ? firstAlert.id : undefined,
+      occurrenceIds: completionIds,
+      total: uniqueAlerts.length,
+    },
+  );
+
+  return completionIds;
 }
 
 export async function saveSale(input: SaleInput, id?: string) {
