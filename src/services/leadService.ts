@@ -21,6 +21,10 @@ export type WebsiteLeadPayload = {
   utmContent?: string;
   utmTerm?: string;
   landingPage?: string;
+  monthlyIncome?: number;
+  hasFgts?: boolean;
+  employmentType?: string;
+  source?: string;
 };
 
 export function validateWebsiteLead(payload: WebsiteLeadPayload) {
@@ -42,14 +46,14 @@ export async function createWebsiteLead(payload: WebsiteLeadPayload) {
     phone,
     email: payload.email?.trim() ?? "",
     city: payload.city?.trim() ?? "",
-    monthlyIncome: null,
-    employmentType: null,
-    hasFgts: false,
+    monthlyIncome: payload.monthlyIncome ?? null,
+    employmentType: payload.employmentType ?? null,
+    hasFgts: payload.hasFgts ?? false,
     dependents: 0,
     propertyInterest: payload.propertyInterest?.trim() ?? "",
     developmentId: payload.developmentId ?? "",
     propertyId: payload.propertyId ?? "",
-    source: "site",
+    source: payload.source?.trim() || "site",
     campaign: payload.campaign?.trim() ?? "",
     adSet: payload.adSet?.trim() ?? "",
     ad: payload.ad?.trim() ?? "",
@@ -65,7 +69,7 @@ export async function createWebsiteLead(payload: WebsiteLeadPayload) {
     firstContactAt: null,
     lastContactAt: null,
     estimatedCommission: null,
-    tags: ["site"],
+    tags: [payload.source?.trim() || "site"],
     favorite: false,
     notes: payload.message?.trim() ?? "",
     status: "active",
