@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
-import { trackMetaLead } from "@/lib/metaPixel";
+import { trackMetaLeadOnce } from "@/lib/metaPixel";
 import { createWebsiteLead } from "@/services/leadService";
 
 const cities = ["Gravataí", "Cachoeirinha", "Canoas", "Porto Alegre", "Outra cidade"];
@@ -33,6 +33,8 @@ function getAttributionParams() {
 }
 
 export default function QuickLeadForm() {
+  const submitInProgressRef = useRef(false);
+  const metaLeadStateRef = useRef({ tracked: false });
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState("");
@@ -59,6 +61,9 @@ export default function QuickLeadForm() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitInProgressRef.current || status === "success") return;
+
+    submitInProgressRef.current = true;
     setStatus("loading");
     setError("");
 
@@ -75,9 +80,10 @@ export default function QuickLeadForm() {
         ...getAttributionParams(),
       });
 
-      trackMetaLead();
+      trackMetaLeadOnce(metaLeadStateRef.current);
       setStatus("success");
     } catch (err) {
+      submitInProgressRef.current = false;
       setStatus("error");
       setError(err instanceof Error ? err.message : "Não foi possível enviar agora.");
     }

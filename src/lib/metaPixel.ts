@@ -3,6 +3,10 @@ type MetaPixelFunction = (
   eventName: "Lead",
 ) => void;
 
+export type MetaLeadTrackingState = {
+  tracked: boolean;
+};
+
 declare global {
   interface Window {
     fbq?: MetaPixelFunction;
@@ -12,6 +16,18 @@ declare global {
 export function trackMetaLead() {
   if (typeof window === "undefined" || typeof window.fbq !== "function") return false;
 
-  window.fbq("track", "Lead");
-  return true;
+  try {
+    window.fbq("track", "Lead");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function trackMetaLeadOnce(state: MetaLeadTrackingState) {
+  if (state.tracked) return false;
+
+  const tracked = trackMetaLead();
+  if (tracked) state.tracked = true;
+  return tracked;
 }
