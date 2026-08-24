@@ -22,6 +22,7 @@ export type WebsiteLeadPayload = {
   utmTerm?: string;
   landingPage?: string;
   monthlyIncome?: number;
+  incomeRange?: string;
   hasFgts?: boolean;
   employmentType?: string;
   source?: string;
@@ -47,6 +48,8 @@ export async function createWebsiteLead(payload: WebsiteLeadPayload) {
     email: payload.email?.trim() ?? "",
     city: payload.city?.trim() ?? "",
     monthlyIncome: payload.monthlyIncome ?? null,
+    income: payload.monthlyIncome ?? 0,
+    incomeRange: payload.incomeRange?.trim() ?? "",
     employmentType: payload.employmentType ?? null,
     hasFgts: payload.hasFgts ?? false,
     dependents: 0,
