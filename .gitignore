@@ -44,3 +44,5 @@ backups/
 *.log
 .next/
 node_modules/
+.vercel
+.env*

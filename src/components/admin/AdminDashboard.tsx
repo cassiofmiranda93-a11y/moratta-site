@@ -14,6 +14,7 @@ import {
   UploadCloud,
   Users,
   UserRoundCheck,
+  BriefcaseBusiness,
   PlugZap,
   BarChart3,
   Sparkles,
@@ -35,6 +36,7 @@ import { formatCurrency } from "@/lib/catalog";
 import DevelopmentForm from "./DevelopmentForm";
 import PropertyForm from "./PropertyForm";
 import AdminLeadsPanel from "./AdminLeadsPanel";
+import MyCrmPanel from "./MyCrmPanel";
 import LostLeadsPool from "./lost-leads-pool";
 import TeamPanel from "./TeamPanel";
 import ExecutiveDashboard from "./ExecutiveDashboard";
@@ -49,7 +51,7 @@ import type { Development, PropertyUnit } from "@/types/project";
 import type { BrokerRecord, SecuritySettings, UserRole } from "@/types/admin";
 import { hasPermission, roleLabel } from "@/lib/permissions";
 
-type Tab = "overview" | "alerts" | "atlas" | "directorate" | "finance" | "catalog" | "developments" | "properties" | "leads" | "lost_pool" | "team" | "integrations" | "audit" | "security";
+type Tab = "my_crm" | "overview" | "alerts" | "atlas" | "directorate" | "finance" | "catalog" | "developments" | "properties" | "leads" | "lost_pool" | "team" | "integrations" | "audit" | "security";
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -141,6 +143,7 @@ export default function AdminDashboard() {
       <div className="mx-auto grid max-w-[1500px] gap-6 px-5 py-6 lg:grid-cols-[240px_1fr]">
         <aside className="h-fit rounded-2xl bg-white p-3 shadow-sm lg:sticky lg:top-24">
           <p className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-400">Gestão</p>
+          {userRole !== "finance" && <NavButton active={tab === "my_crm"} onClick={() => setTab("my_crm")} icon={<BriefcaseBusiness size={18} />} label="Meu CRM" />}
           <NavButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<BarChart3 size={18} />} label="Dashboard CRM" />
           <NavButton active={tab === "alerts"} onClick={() => setTab("alerts")} icon={<BellRing size={18} />} label="Alertas e prazos" />
           {userRole !== "finance" && <NavButton active={tab === "atlas"} onClick={() => setTab("atlas")} icon={<Sparkles size={18} />} label="Atlas Comercial" />}
@@ -163,6 +166,7 @@ export default function AdminDashboard() {
           {error && <div className="mb-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{error}</div>}
           {loading ? <Centered text="Carregando catálogo..." compact /> : (
             <>
+              {tab === "my_crm" && userRole !== "finance" && <MyCrmPanel currentBrokerId={currentBrokerId} brokerName={currentMember?.name} />}
               {tab === "overview" && <ExecutiveDashboard userRole={userRole} currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}
               {tab === "alerts" && <AlertsPanel userRole={userRole} currentBrokerId={currentBrokerId} />}
               {tab === "atlas" && userRole !== "finance" && <AtlasOpportunitiesPanel currentBrokerId={userRole === "broker" ? currentBrokerId : ""} />}

@@ -1,0 +1,12 @@
+MEU CRM - MORATTA ADMIN
+
+- Nova opção "Meu CRM" no menu do Moratta Admin.
+- A tela usa o corretor vinculado ao e-mail autenticado e mostra somente a carteira atribuída a ele.
+- Cards operacionais: Novos, Retornos hoje, Atrasados, Em negociação e Vendas.
+- Busca e filtros rápidos da carteira pessoal.
+- Próximas ações/retornos.
+- Funil pessoal por etapa.
+- Abertura do perfil completo do cliente pelo mesmo LeadDetailDrawer já usado no CRM.
+- Atalho direto para WhatsApp.
+- "Clientes e leads" continua sendo a visão administrativa/global e distribuição da equipe.
+- Se o usuário não estiver vinculado a um corretor, a tela orienta cadastrar o mesmo e-mail em Equipe e acessos.

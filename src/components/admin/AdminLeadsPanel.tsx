@@ -72,6 +72,7 @@ export default function AdminLeadsPanel({
   const [manualModal, setManualModal] = useState(false);
   const [importModal, setImportModal] = useState(false);
   const [distributionBatchSize, setDistributionBatchSize] = useState(20);
+  const [targetBrokerId, setTargetBrokerId] = useState("");
 
   useEffect(
     () =>
@@ -127,7 +128,11 @@ export default function AdminLeadsPanel({
           .toLocaleLowerCase("pt-BR")
           .includes(term);
       const matchesStage = !stageFilter || lead.stage === stageFilter;
-      const matchesBroker = !effectiveBrokerFilter || lead.assignedTo === effectiveBrokerFilter;
+      const matchesBroker =
+        !effectiveBrokerFilter ||
+        (effectiveBrokerFilter === "__unassigned__"
+          ? !lead.assignedTo
+          : lead.assignedTo === effectiveBrokerFilter);
       const matchesSource = !sourceFilter || lead.source === sourceFilter;
       return matchesQuery && matchesStage && matchesBroker && matchesSource;
     });
@@ -172,6 +177,31 @@ export default function AdminLeadsPanel({
       else selectableIds.forEach((id) => next.add(id));
       return next;
     });
+  }
+
+
+  async function assignSelectedToBroker() {
+    if (!targetBrokerId) {
+      setMessage("Escolha o corretor que receberá os leads selecionados.");
+      return;
+    }
+    const leadIds = selectedUnassignedIds;
+    if (leadIds.length === 0) {
+      setMessage("Selecione pelo menos um lead sem corretor.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await Promise.all(leadIds.map((leadId) => assignLead(leadId, targetBrokerId)));
+      const broker = brokers.find((item) => item.id === targetBrokerId);
+      setSelectedIds(new Set());
+      setMessage(`${leadIds.length} lead${leadIds.length === 1 ? "" : "s"} transferido${leadIds.length === 1 ? "" : "s"} para ${broker?.name ?? "o corretor selecionado"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível transferir os leads.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function runDistribution() {
@@ -385,6 +415,28 @@ export default function AdminLeadsPanel({
             <Plus size={17} /> Novo cliente
           </button>
           {canManage && (
+            <div className="flex overflow-hidden rounded-xl border border-blue-950 bg-white">
+              <select
+                value={targetBrokerId}
+                onChange={(event) => setTargetBrokerId(event.target.value)}
+                className="max-w-48 border-r border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none"
+                aria-label="Corretor para transferência"
+              >
+                <option value="">Transferir para...</option>
+                {brokers.filter((broker) => broker.active).map((broker) => (
+                  <option key={broker.id} value={broker.id}>{broker.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => void assignSelectedToBroker()}
+                disabled={busy || selectedUnassignedIds.length === 0 || !targetBrokerId}
+                className="flex items-center gap-2 bg-blue-950 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <UserRoundCheck size={17} /> Transferir ({selectedUnassignedIds.length})
+              </button>
+            </div>
+          )}
+          {canManage && (
             <button
               onClick={runDistribution}
               disabled={busy || selectedUnassignedIds.length === 0}
@@ -438,7 +490,10 @@ export default function AdminLeadsPanel({
               value={brokerFilter}
               onChange={setBrokerFilter}
               label="Todos os corretores"
-              options={brokers.map((broker) => [broker.id, broker.name] as [string, string])}
+              options={[
+                ["__unassigned__", "Sem corretor"] as [string, string],
+                ...brokers.map((broker) => [broker.id, broker.name] as [string, string]),
+              ]}
             />
           )}
           <Filter

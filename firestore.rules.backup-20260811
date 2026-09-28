@@ -1,0 +1,186 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owns(userId) { return signedIn() && request.auth.uid == userId; }
+    function authEmail() { return signedIn() && request.auth.token.email is string ? request.auth.token.email : ''; }
+
+    function bootstrapAdmin() {
+      return signedIn() && authEmail().lower() in [
+        'cassiofmiranda93@gmail.com',
+        'cassio@morattars.com.br'
+      ];
+    }
+
+    function securityPath(organizationId) {
+      return /databases/$(database)/documents/organizations/$(organizationId)/settings/security;
+    }
+    function accessPath(organizationId) {
+      return /databases/$(database)/documents/organizations/$(organizationId)/access/$(authEmail());
+    }
+    function strictAccess(organizationId) {
+      return exists(securityPath(organizationId))
+        && get(securityPath(organizationId)).data.strictAccess == true;
+    }
+    function hasActiveAccess(organizationId) {
+      return signedIn()
+        && authEmail() != ''
+        && exists(accessPath(organizationId))
+        && get(accessPath(organizationId)).data.active == true;
+    }
+    function role(organizationId) {
+      return get(accessPath(organizationId)).data.role;
+    }
+    function memberId(organizationId) {
+      return get(accessPath(organizationId)).data.memberId;
+    }
+    function hasRole(organizationId, roles) {
+      return signedIn() && (
+        bootstrapAdmin()
+        || !strictAccess(organizationId)
+        || (hasActiveAccess(organizationId) && role(organizationId) in roles)
+      );
+    }
+
+    function validPublicLead() {
+      return request.resource.data.keys().hasAll(['name', 'phone', 'source', 'stage', 'status', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 10
+        && request.resource.data.phone.size() <= 15
+        && request.resource.data.source == 'site'
+        && request.resource.data.stage == 'new'
+        && request.resource.data.status == 'active';
+    }
+
+    match /users/{userId} {
+      allow create: if owns(userId) && request.resource.data.uid == userId;
+      allow read: if owns(userId);
+      allow update: if owns(userId) && resource.data.uid == userId && request.resource.data.uid == userId;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/{collectionId}/{documentId} {
+      allow read, create, update, delete: if owns(userId)
+        && collectionId in ['tasks', 'appointments', 'missions', 'habits', 'focusSessions', 'migrations'];
+    }
+
+    match /users/{userId}/crmLeads/{leadId} {
+      allow read, create, update, delete: if owns(userId);
+      match /activities/{activityId} {
+        allow read, create, update, delete: if owns(userId);
+      }
+    }
+
+    match /organizations/{organizationId}/developments/{developmentId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance'])
+        || (resource.data.status == 'published' && resource.data.active == true);
+      allow create, update, delete: if hasRole(organizationId, ['admin', 'manager']);
+    }
+
+    match /organizations/{organizationId}/properties/{propertyId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance'])
+        || (resource.data.active == true
+          && get(/databases/$(database)/documents/organizations/$(organizationId)/developments/$(resource.data.developmentId)).data.status == 'published');
+      allow create, update, delete: if hasRole(organizationId, ['admin', 'manager']);
+    }
+
+    match /organizations/{organizationId}/leads/{leadId} {
+      allow create: if validPublicLead()
+        || hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId)
+            || request.resource.data.assignedTo in ['', memberId(organizationId)]));
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId) || resource.data.assignedTo == memberId(organizationId)));
+      allow update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId)
+            || (resource.data.assignedTo == memberId(organizationId)
+              && request.resource.data.assignedTo == resource.data.assignedTo)));
+      allow delete: if hasRole(organizationId, ['admin']);
+
+      match /activities/{activityId} {
+        allow read, create, update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+          || (hasRole(organizationId, ['broker'])
+            && (!strictAccess(organizationId)
+              || get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(leadId)).data.assignedTo == memberId(organizationId)));
+        allow delete: if hasRole(organizationId, ['admin', 'manager']);
+      }
+    }
+
+    match /organizations/{organizationId}/sales/{saleId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId)
+            || resource.data.brokerId == memberId(organizationId)
+            || get(/databases/$(database)/documents/organizations/$(organizationId)/leads/$(resource.data.leadId)).data.assignedTo == memberId(organizationId)));
+      allow create: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId) || request.resource.data.brokerId == memberId(organizationId)));
+      allow update: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker'])
+          && (!strictAccess(organizationId)
+            || (resource.data.brokerId == memberId(organizationId)
+              && request.resource.data.brokerId == resource.data.brokerId)));
+      allow delete: if hasRole(organizationId, ['admin', 'manager']);
+    }
+
+    match /organizations/{organizationId}/members/{memberIdValue} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow create: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && request.resource.data.role != 'admin');
+      allow update: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && resource.data.role != 'admin' && request.resource.data.role != 'admin');
+      allow delete: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && resource.data.role != 'admin');
+    }
+
+    match /organizations/{organizationId}/access/{accessEmail} {
+      allow read: if signedIn() && (authEmail() == accessEmail || hasRole(organizationId, ['admin', 'manager']));
+      allow create: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && request.resource.data.role != 'admin');
+      allow update: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && resource.data.role != 'admin' && request.resource.data.role != 'admin');
+      allow delete: if hasRole(organizationId, ['admin'])
+        || (hasRole(organizationId, ['manager']) && resource.data.role != 'admin');
+    }
+
+    match /organizations/{organizationId}/settings/{documentId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow write: if (documentId == 'security' && hasRole(organizationId, ['admin']))
+        || (documentId != 'security' && hasRole(organizationId, ['admin', 'manager']));
+    }
+
+    match /organizations/{organizationId}/auditLogs/{auditId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager']);
+      allow create: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow update, delete: if false;
+    }
+
+    match /organizations/{organizationId}/alertCompletions/{completionId} {
+      allow read, create, update: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow delete: if hasRole(organizationId, ['admin', 'manager']);
+    }
+
+    match /organizations/{organizationId}/whatsappMessages/{messageId} {
+      allow read: if hasRole(organizationId, ['admin', 'manager', 'finance'])
+        || (hasRole(organizationId, ['broker']) && !strictAccess(organizationId));
+      allow create, update: if hasRole(organizationId, ['admin', 'manager', 'broker', 'finance']);
+      allow delete: if hasRole(organizationId, ['admin']);
+    }
+    // ATLAS_MORATTA_OWNER_READ
+    // Leitura administrativa exclusiva para os dois e-mails do Cássio.
+    match /organizations/{organizationId}/{document=**} {
+      allow read: if signedIn()
+        && organizationId == 'moratta'
+        && authEmail() in [
+          'cassiofmiranda93@gmail.com',
+          'cassio@morattars.com.br'
+        ];
+    }
+  }
+}

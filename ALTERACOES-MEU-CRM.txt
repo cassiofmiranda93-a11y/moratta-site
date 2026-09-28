@@ -1,0 +1,12 @@
+MORATTA ADMIN - integração Meu CRM
+
+Alterações:
+1. Filtro "Sem corretor" em Clientes e leads.
+2. Seleção de leads sem responsável.
+3. Campo "Transferir para..." com corretores ativos.
+4. Transferência manual em massa para o corretor escolhido.
+5. Mantida a distribuição automática/roleta existente.
+
+Instalação: copie src/ sobre a pasta src/ do projeto moratta-site atual.
+Não substitua seu .env.local.
+Depois rode: npm run dev
