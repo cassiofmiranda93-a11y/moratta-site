@@ -1,0 +1,6 @@
+Correção de acesso administrativo - Meu CRM
+
+- Contas bootstrap de administração agora têm prioridade sobre a role cadastrada na equipe.
+- cassiofmiranda93@gmail.com e cassio@morattars.com.br entram como Administrador mesmo se o registro de integrante estiver como Corretor.
+- O vínculo de corretor continua preservado para o Meu CRM mostrar somente a carteira pessoal.
+- Demais usuários continuam obedecendo às roles cadastradas (admin, gerente, corretor, financeiro).

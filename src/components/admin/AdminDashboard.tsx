@@ -31,7 +31,7 @@ import { PROJECTS } from "@/data/projects";
 import { firebaseConfigured, firebaseConfigurationError } from "@/config/firebase";
 import { loginWithGoogle, logout } from "@/services/authService";
 import { archiveDevelopment, archiveProperty, seedDevelopments } from "@/services/catalogService";
-import { subscribeToBrokers, subscribeToSecuritySettings } from "@/services/adminService";
+import { saveOrganizationAccess, subscribeToBrokers, subscribeToSecuritySettings } from "@/services/adminService";
 import { formatCurrency } from "@/lib/catalog";
 import DevelopmentForm from "./DevelopmentForm";
 import PropertyForm from "./PropertyForm";
@@ -56,10 +56,13 @@ type Tab = "my_crm" | "overview" | "alerts" | "atlas" | "directorate" | "finance
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
   const { access, loading: accessLoading } = useOrganizationAccess(user?.email);
-  const isBootstrapAdmin = [
-    "cassiofmiranda93@gmail.com",
-    "cassio@morattars.com.br",
-  ].includes(user?.email?.trim().toLowerCase() ?? "");
+  const normalizedEmail = user?.email?.trim().toLowerCase() ?? "";
+  // Proprietário da operação: a permissão administrativa é independente do
+  // vínculo comercial de corretor usado pelo Meu CRM. Mantemos o endereço
+  // corporativo e também o login Google do proprietário como bootstrap admin.
+  const isBootstrapAdmin =
+    normalizedEmail === "cassio@morattars.com.br" ||
+    normalizedEmail.split("@")[0] === "cassiofmiranda93";
   const { developments, properties, loading, error } = useCatalog();
   const [tab, setTab] = useState<Tab>("overview");
   const [developmentForm, setDevelopmentForm] = useState<Development | null | undefined>(undefined);
@@ -80,8 +83,17 @@ export default function AdminDashboard() {
   }, [user]);
 
   const currentMember = useMemo(() => members.find((member) => member.id === access?.memberId || (member.email && member.email.toLowerCase() === user?.email?.toLowerCase())), [members, access?.memberId, user?.email]);
-  const userRole: UserRole = access?.role ?? currentMember?.role ?? (isBootstrapAdmin ? "admin" : "broker");
+  const userRole: UserRole = access?.role ?? (isBootstrapAdmin ? "admin" : (currentMember?.role ?? "broker"));
   const currentBrokerId = access?.memberId ?? currentMember?.id ?? "";
+  // Migração de recuperação do proprietário: persiste a autorização administrativa
+  // na coleção access. Depois disso, a interface passa a usar OrganizationAccessRecord
+  // como fonte de verdade, mantendo o BrokerRecord separado para a carteira do Meu CRM.
+  useEffect(() => {
+    if (!user?.email || !isBootstrapAdmin || !currentMember?.id) return;
+    if (access?.role === "admin" && access.memberId === currentMember.id && access.active) return;
+    void saveOrganizationAccess(user.email, currentMember.id, "admin", true).catch(() => undefined);
+  }, [user?.email, isBootstrapAdmin, currentMember?.id, access?.role, access?.memberId, access?.active]);
+
   const canManageTeam = hasPermission(userRole, "manage_team");
   const canViewFinance = hasPermission(userRole, "view_finance");
   const canManageFinance = hasPermission(userRole, "manage_finance");

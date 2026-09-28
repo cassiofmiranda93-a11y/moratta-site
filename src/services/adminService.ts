@@ -876,6 +876,20 @@ function toAudit(data: DocumentData, id: string): AuditLogRecord {
   };
 }
 
+export async function saveOrganizationAccess(email: string, memberId: string, role: OrganizationAccessRecord["role"], active = true) {
+  const db = requireFirestore();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("E-mail de acesso inválido.");
+  await setDoc(doc(db, ...base, "access", normalizedEmail), {
+    email: normalizedEmail,
+    memberId,
+    role,
+    active,
+    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+  }, { merge: true });
+}
+
 export function subscribeToCurrentAccess(email: string, onData: (item: OrganizationAccessRecord | null) => void, onError: (error: Error) => void) {
   if (!firestore || !email) return () => undefined;
   return onSnapshot(doc(firestore, ...base, "access", email.toLowerCase()), (snapshot) => {

@@ -1,0 +1,5 @@
+MORATTA ADMIN - V4
+
+Correcao da identificacao do proprietario como Administrador.
+A permissao administrativa agora e separada do vinculo comercial de corretor.
+O mesmo usuario continua usando seu brokerId no Meu CRM para ver a propria carteira.
